@@ -2327,6 +2327,224 @@ function newRun(seed){
 function levelEnemyCount(level){
  return 13+6*(level-1);
 }
+function bossKindForLevel(level){
+ return level>0&&level%10===0?"donkey":"warden";
+}
+function donkeyStats(rank){
+ const r=Number.isSafeInteger(rank)&&rank>0?rank:1;
+ return {
+  rank:r,hp:1200+900*(r-1),
+  scale:1.8+.9*(1-1/r),
+  damage:18+6*(r-1),
+  pellets:Math.min(12,6+r-1),
+  speed:Math.min(9,6+.4*(r-1)),
+  radius:Math.min(.18,.12+.01*(r-1)),
+  cooldown:Math.max(.9,2/(1+.12*(r-1))),
+  summonInterval:Math.max(5,9-.5*(r-1)),
+  summonCount:Math.min(4,2+Math.floor((r-1)/2)),
+  summonTotal:Math.min(24,12+2*(r-1))
+ };
+}
+function enemyScale(e){
+ return e.bossKind==="donkey"?donkeyStats(e.donkeyRank).scale:e.boss?1.65:1;
+}
+function normalizeDonkey(e,level){
+ if(e.bossKind!=="donkey")return;
+ e.boss=true;
+ e.donkeyRank=Number.isSafeInteger(e.donkeyRank)&&e.donkeyRank>0
+  ?e.donkeyRank:Math.max(1,Math.floor(level/10));
+ const stats=donkeyStats(e.donkeyRank);
+ e.summonWait=Number.isFinite(e.summonWait)
+  ?clamp(e.summonWait,0,stats.summonInterval):stats.summonInterval;
+ e.summonedCount=Number.isSafeInteger(e.summonedCount)&&e.summonedCount>=0
+  ?e.summonedCount:0;
+ e.cd=Number.isFinite(e.cd)?Math.max(0,e.cd):2;
+ e.wind=Number.isFinite(e.wind)?clamp(e.wind,0,1.2):0;
+ e.donkeyAction=e.donkeyAction==="summon"?"summon":"volley";
+ e.angle=Number.isFinite(e.angle)?e.angle:0;
+}
+function donkeyPose(e){
+ const angle=e.angle||0,dx=Math.cos(angle),dy=Math.sin(angle);
+ const sx=(dx-dy)*32,sy=(dx+dy)*16,length=Math.hypot(sx,sy)||1;
+ return {gx:sx/length,gy:sy/length};
+}
+function donkeyParts(e){
+ const {gx,gy}=donkeyPose(e);
+ const headX=-gx*32,headY=-30-gy*22;
+ const parts=[
+  [-17,-8,5,13,"#706453"],[17,-8,5,13,"#706453"],
+  [-9,-6,5,13,"#95836b"],[9,-6,5,13,"#95836b"],
+  [0,-25,25,17,"#95836b"],
+  [-gx*20,-29-gy*12,12,18,"#95836b"],
+  [headX-6,headY-20,4,14,"#a69780"],
+  [headX+6,headY-20,4,14,"#a69780"],
+  [headX,headY,12,14,"#ac9b82"],
+  [headX-gx*7,headY+7,11,7,"#d1ba97"]
+ ];
+ for(const side of [-1,1]){
+  const x=gx*23-gy*side*10,y=-23+gy*16+gx*side*10;
+  parts.push([x-4,y,7.5,10,"#8a735b"],[x+4,y,7.5,10,"#a58c6f"]);
+ }
+ return parts;
+}
+function donkeyHitPath(e){
+ const path=new Path2D();
+ for(const [x,y,rx,ry] of donkeyParts(e)){
+  path.moveTo(x+rx,y);
+  path.ellipse(x,y,rx,ry,0,0,Math.PI*2);
+  path.closePath();
+ }
+ return path;
+}
+function donkeyMuzzles(e){
+ const {gx,gy}=donkeyPose(e),scale=enemyScale(e);
+ return [-1,1].map(side=>{
+  const sx=(gx*31-gy*side*10)*scale;
+  const sy=(-23+gy*24+gx*side*10)*scale+19;
+  return {x:e.x+sx/64+sy/32,y:e.y-sx/64+sy/32};
+ });
+}
+function drawDonkey(e){
+ if(e.hp<=0)return;
+ const p=project(e.x,e.y),scale=enemyScale(e),{gx,gy}=donkeyPose(e);
+ ctx.save();
+ ctx.translate(p.x,p.y);
+ ctx.scale(scale,scale);
+ ellipse(0,3,30,11,"#302a2455");
+ ctx.strokeStyle="#332a22";
+ ctx.lineWidth=1.5;
+ for(const [x,y,rx,ry,color] of donkeyParts(e)){
+  ellipse(x,y,rx,ry,color);
+  ctx.stroke();
+ }
+ for(const x of [-17,-9,9,17]){
+  ellipse(x,4,5,3,"#332d26");
+ }
+ const headX=-gx*32,headY=-30-gy*22;
+ ellipse(headX-5,headY-2,2,2.5,"#221b17");
+ ellipse(headX+5,headY-2,2,2.5,"#221b17");
+ ctx.lineCap="round";
+ for(const side of [-1,1]){
+  const x=gx*23-gy*side*10,y=-23+gy*16+gx*side*10;
+  ctx.strokeStyle="#594531";
+  ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(x,y-5);ctx.lineTo(x,y+6);ctx.stroke();
+  const mx=gx*31-gy*side*10,my=-23+gy*24+gx*side*10;
+  ellipse(mx,my,e.wind>0?3.5:2.5,2.5,e.wind>0?"#edb466":"#513321");
+  ctx.strokeStyle="#594531";
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(x,y-9);
+  ctx.quadraticCurveTo(x+side*7,y-18,x+side*10,y-10);
+  ctx.stroke();
+ }
+ drawActorStains(e);
+ ctx.restore();
+ const top=p.y-92*scale;
+ ctx.fillStyle="#332a22";ctx.fillRect(p.x-61,top,122,8);
+ ctx.fillStyle="#ad543c";ctx.fillRect(p.x-60,top+1,120*clamp(e.hp/e.max,0,1),6);
+ text("БОЛЬШОЙ ОСЁЛ · "+e.donkeyRank,p.x,top-7,12,"#fff0cf");
+ if(e.wind>0){
+  text(e.donkeyAction==="summon"?"ПОДКРЕПЛЕНИЕ!":"ДВОЙНОЙ ЗАЛП!",
+   p.x,top-25,12,"#ffd378");
+ }
+ if(e.burn>0)text("♨",p.x+35,top-7,16,"#ff812a");
+ if(e.slow>0)text("❄",p.x-35,top-7,16,"#79b9c1");
+}
+function fireDonkey(e){
+ const stats=donkeyStats(e.donkeyRank);
+ const furious=e.hp<e.max*.5;
+ const spread=furious?.52:.38;
+ for(const muzzle of donkeyMuzzles(e)){
+  for(let i=0;i<stats.pellets;i++){
+   const angle=e.angle+(i/(stats.pellets-1)-.5)*spread*2;
+   projectile(muzzle.x,muzzle.y,angle,stats.speed,stats.damage,true,{
+    life:12/stats.speed,donkeyPellet:true,pelletRadius:stats.radius,
+    launch:{x:e.x,y:e.y}
+   });
+  }
+ }
+ playWav("doublebarrel",{volume:1,rate:.7,actor:{x:e.x,y:e.y}});
+}
+function summonDonkeyNPCs(e){
+ const stats=donkeyStats(e.donkeyRank);
+ const alive=S.enemies.filter(n=>n.hp>0&&n.summonedBy===e.id).length;
+ const count=Math.min(stats.summonCount,6-alive,stats.summonTotal-e.summonedCount);
+ if(count<=0)return;
+ const reachable=distances(S.map,Math.floor(S.p.x),Math.floor(S.p.y));
+ const random=rng(hash(S.map.seed+":"+e.id+":summon:"+e.summonedCount));
+ const baseAngle=Math.atan2(S.p.y-e.y,S.p.x-e.x);
+ let created=0;
+ for(let attempt=0;attempt<48&&created<count;attempt++){
+  const angle=baseAngle+(random()-.5)*2.2;
+  const distance=2+random()*1.8;
+  const point={x:e.x+Math.cos(angle)*distance,y:e.y+Math.sin(angle)*distance};
+  if(!valid(point.x,point.y,.3)||dist(point,S.p)<2||
+     !lineClear(e,point)||
+     reachable[Math.floor(point.y)*S.map.n+Math.floor(point.x)]<0||
+     S.map.shops.some(s=>dist(s,point)<3)||
+     S.props.some(o=>o.hp>0&&dist(o,point)<.8)||
+     S.enemies.some(n=>n.hp>0&&dist(n,point)<.9))continue;
+  const role=pick(random,[1,2,4,5]);
+  const type=3+role*NPC_FACTIONS.length+Math.floor(random()*NPC_FACTIONS.length);
+  const hp=Math.round(ENEMY_TYPES[type].hp*(1+.07*(S.level-1))*
+   (1.35+.1*(stats.rank-1)));
+  const npc={
+   id:++serial,x:point.x,y:point.y,type,hp,max:hp,
+   cd:1.2,wind:0,burn:0,slow:0,phase:0,patrol:false,
+   summonedBy:e.id,spawnWait:.8
+  };
+  npc.weapon=weapon(hash(S.map.seed+":"+npc.id+":donkey-guard"),S.level,2);
+  npc.weapon.damage=Math.round(npc.weapon.damage*1.2);
+  S.enemies.push(npc);
+  wakeEnemy(npc);
+  burst(point.x,point.y,"#89613d",8);
+  created++;
+ }
+ e.summonedCount+=created;
+ if(created)playWav("crate_break",{volume:.9,rate:.7,actor:{x:e.x,y:e.y}});
+}
+function updateDonkey(e,dt){
+ if(!Number.isFinite(dt)||dt<=0)return;
+ const stats=donkeyStats(e.donkeyRank);
+ const distance=dist(e,S.p);
+ const canSee=distance<=14&&lineClear(e,S.p);
+ if(!canSee){
+  e.wind=0;
+  e.cd=Math.max(e.cd,.5);
+  return;
+ }
+ e.cd=Math.max(0,e.cd-dt);
+ e.summonWait=Math.max(0,e.summonWait-dt);
+ if(e.wind>0){
+  // В последние 0,35 с направление залпа фиксируется: можно уклониться.
+  if(e.wind>.35)e.angle=Math.atan2(S.p.y-e.y,S.p.x-e.x);
+  e.wind=Math.max(0,e.wind-dt);
+  if(e.wind===0){
+   if(e.donkeyAction==="summon"){
+    summonDonkeyNPCs(e);
+    e.summonWait=stats.summonInterval;
+   }else fireDonkey(e);
+   e.cd=stats.cooldown*(e.hp<e.max*.5?.8:1);
+  }
+ }else if(e.cd===0){
+  const alive=S.enemies.filter(n=>n.hp>0&&n.summonedBy===e.id).length;
+  const summon=e.summonWait===0&&alive<6&&e.summonedCount<stats.summonTotal;
+  e.donkeyAction=summon?"summon":"volley";
+  e.wind=summon?1.2:.85;
+  e.angle=Math.atan2(S.p.y-e.y,S.p.x-e.x);
+ }
+ if(distance<.65*stats.scale)damagePlayer(18+4*(stats.rank-1));
+}
+function drawDonkeyPellet(b,z=19){
+ const p=project(b.x,b.y,z);
+ const radius=clamp((b.pelletRadius||.12)*45,5.4,8.1);
+ ctx.save();
+ ellipse(p.x,p.y,radius,radius,"#714525");
+ ctx.strokeStyle="#352316";ctx.lineWidth=1.5;ctx.stroke();
+ ellipse(p.x-radius*.3,p.y-radius*.3,radius*.3,radius*.22,"#b18a57");
+ ctx.restore();
+}
 function buildLevel(){
  stopGameSounds();
  shotShake=0;
@@ -2373,8 +2591,16 @@ function buildLevel(){
   for(let y=Math.floor(e.y)-2;y<=Math.floor(e.y)+2;y++)
    for(let x=Math.floor(e.x)-2;x<=Math.floor(e.x)+2;x++)
     if(x>0&&y>0&&x<S.map.n-1&&y<S.map.n-1)S.map.tiles[y*S.map.n+x]=0;
-  S.enemies.push({id:++serial,x:e.x,y:e.y,type:0,boss:true,hp:600*(1+S.level*.07),
-   max:600*(1+S.level*.07),cd:2,wind:0,burn:0,slow:0,phase:0});
+  const bossKind=bossKindForLevel(S.level);
+  const donkeyRank=Math.max(1,Math.floor(S.level/10));
+  const hp=bossKind==="donkey"?donkeyStats(donkeyRank).hp:600*(1+S.level*.07);
+  const boss={id:++serial,x:e.x,y:e.y,type:0,boss:true,bossKind,
+   hp,max:hp,cd:2,wind:0,burn:0,slow:0,phase:0};
+  if(bossKind==="donkey"){
+   boss.donkeyRank=donkeyRank;
+   normalizeDonkey(boss,S.level);
+  }
+  S.enemies.push(boss);
  }
  for(let i=0;i<Math.round(60*population)&&spots.length;i++){
   const p=spots.pop();S.props.push({x:p.x,y:p.y,hp:25,kind:r()<.4?"barrel":"crate"});
@@ -2385,7 +2611,8 @@ function buildLevel(){
  for(const e of S.enemies)equipEnemy(e);
  delete S.map.floors;
  pathTimer=0;reveal();save();
- toast(S.level%5===0?"Выход заблокирован: победите босса «Дискоядро»":"Найдите портал. Убивать всех необязательно.");
+ toast(S.level%10===0?"Выход заблокирован: победите Большого осла":
+  S.level%5===0?"Выход заблокирован: победите босса «Дискоядро»":"Найдите портал. Убивать всех необязательно.");
 }
 function wall(x,y){
  if(!S)return true;
@@ -2636,6 +2863,18 @@ function emitHitVisual(actor,amount,direction=null,blood=true){
  }
 }
 function emitEnemyBreakup(e){
+ if(e.bossKind==="donkey"){
+  const scale=enemyScale(e);
+  for(const [sx,sy,rx,ry,color] of donkeyParts(e)){
+   const angle=combatRandom()*Math.PI*2;
+   addCombatParticle({
+    kind:"debris",x:e.x+sx*scale/64,y:e.y-sx*scale/64,
+    z:Math.max(2,-sy*scale),vx:Math.cos(angle),vy:Math.sin(angle),
+    vz:30+combatRandom()*35,life:4,size:rx*scale,height:ry*scale,color
+   });
+  }
+  return;
+ }
  const t=ENEMY_TYPES[e.type],scale=e.boss?1.65:1;
  const coat=e.boss?"#786d53":t.color;
  const behavior=enemyBehaviorStates.get(e);
@@ -2667,7 +2906,8 @@ function emitBulletDrop(b){
  const drops=state.bulletDrops;
  if(drops.length>=700)drops.shift();
  // Только изображение: нет урона, коллизий и продления дальности.
- drops.push({x:b.x,y:b.y,z:19,age:0,enemy:Boolean(b.enemy)});
+ drops.push({x:b.x,y:b.y,z:19,age:0,enemy:Boolean(b.enemy),
+  donkeyPellet:Boolean(b.donkeyPellet),pelletRadius:b.pelletRadius});
 }
 function stepBulletDrop(drop,dt){
  if(!Number.isFinite(dt)||dt<=0)return drop.age<.34;
@@ -2679,7 +2919,11 @@ function stepBulletDrop(drop,dt){
 function drawBulletDrop(drop){
  const p=project(drop.x,drop.y,drop.z);
  if(p.x<-30||p.x>W+30||p.y<-40||p.y>H+30)return;
- const color=drop.enemy?"#ea8450":"#fff0bb";
+ const color=drop.donkeyPellet?"#89613d":drop.enemy?"#ea8450":"#fff0bb";
+ if(drop.donkeyPellet&&drop.age<.16){
+  drawDonkeyPellet(drop,drop.z);
+  return;
+ }
  ctx.save();
  if(drop.age<.16){
   // Резкое ускорение вниз и короткий вертикальный след.
@@ -3134,6 +3378,7 @@ function die(){
  on("again",()=>newRun());on("home",menu);
 }
 function attack(e){
+ if(e.bossKind==="donkey"){fireDonkey(e);return}
  const w=equipEnemy(e),a=e.angle||0;
  if(e.reload>0||w.ammo<=0)return;
  w.ammo--;
@@ -3350,6 +3595,9 @@ function updateEnemies(dt){
   if(e.hp<=0)continue;
   e.slow=Math.max(0,e.slow-dt);
   if(e.burn>0){e.burn-=dt;e.hp-=4*dt;if(e.hp<=0){killEnemy(e);continue}}
+  if(e.spawnWait>0){e.spawnWait=Math.max(0,e.spawnWait-dt);continue}
+  if(e.bossKind==="donkey"){updateDonkey(e,dt);continue}
+  if(e.summonedBy!==undefined)enemyBehavior(e).alert=CFG.npcMemorySeconds;
   const t=ENEMY_TYPES[e.type],d=dist(e,p),w=equipEnemy(e);
   if(e.reload>0){
    e.reload=Math.max(0,e.reload-dt);
@@ -3419,7 +3667,7 @@ const npcHitContext=document.createElement("canvas").getContext("2d");
 const npcHitCache=new WeakMap();
 let npcHitFrame=0;
 function enemyWeaponHitPaths(e,mode){
- if(!e.weapon)return [];
+ if(e.bossKind==="donkey"||!e.weapon)return [];
  const angle=e.angle||0,dx=Math.cos(angle),dy=Math.sin(angle);
  const screenAngle=mode?1.78:Math.atan2((dx+dy)*16,(dx-dy)*32);
  const scale=mode?.55:.85;
@@ -3435,7 +3683,7 @@ function enemyWeaponHitPaths(e,mode){
  });
 }
 function enemyBulletContact(e,b,ox,oy){
- const scale=e.boss?1.65:1;
+ const scale=enemyScale(e);
  const local=(x,y)=>({
   x:((x-e.x)-(y-e.y))*32/scale,
   y:(((x-e.x)+(y-e.y))*16-19)/scale
@@ -3445,7 +3693,7 @@ function enemyBulletContact(e,b,ox,oy){
  // Быстрая проверка до построения подробного силуэта.
  if(Math.max(start.x,end.x)<-70-padding||
     Math.min(start.x,end.x)>70+padding||
-    Math.max(start.y,end.y)<-80-padding||
+    Math.max(start.y,end.y)<-100-padding||
     Math.min(start.y,end.y)>45+padding)return Infinity;
  if(!npcHitPath)return dist(e,b)<(e.boss?.58:.3)?1:Infinity;
  const behavior=enemyBehaviorStates.get(e);
@@ -3494,7 +3742,7 @@ function updateBullets(dt){
    const ox=b.x,oy=b.y;
    const nx=ox+(leading?leadX:b.vx*flightDt/steps);
    const ny=oy+(leading?leadY:b.vy*flightDt/steps);
-   if(wall(nx,ny)){
+   if(b.donkeyPellet?!valid(nx,ny,clamp(b.pelletRadius||.12,.12,.18)):wall(nx,ny)){
     if(b.bounce>0&&!leading){
      b.bounce--;
      if(wall(nx,oy))b.vx=-b.vx;else b.vy=-b.vy;
@@ -3504,7 +3752,8 @@ function updateBullets(dt){
    b.x=nx;b.y=ny;
    if(b.enemy){
     if(S.map.shops.some(s=>dist(s,b)<2.2)){b.life=0;continue}
-    if(dist(b,S.p)<.25){damagePlayer(b.damage,{x:b.vx,y:b.vy},b.effect);b.life=0}
+    const radius=b.donkeyPellet?clamp(b.pelletRadius||.12,.12,.18):0;
+    if(dist(b,S.p)<.25+radius){damagePlayer(b.damage,{x:b.vx,y:b.vy},b.effect);b.life=0}
    }else{
     let target=null,first=Infinity;
     for(const e of S.enemies){
@@ -3521,7 +3770,8 @@ function updateBullets(dt){
     }
    }
    if(b.life<=0)continue;
-   const obj=S.props.find(o=>o.hp>0&&dist(o,b)<.3);
+   const obj=S.props.find(o=>o.hp>0&&dist(o,b)<
+    .3+(b.donkeyPellet?clamp(b.pelletRadius||.12,.12,.18):0));
    if(obj){
     obj.hp-=b.damage;b.life=0;
     if(obj.hp<=0){
@@ -3639,7 +3889,12 @@ function nearest(){
   };
  }
  const shop=S.map.shops.find(o=>dist(o,p)<1.5);if(shop)return {kind:"shop",obj:shop,text:"E — "+(shop.kind==="weapons"?"оружейный магазин":"улучшения героя")};
- if(dist(p,S.map.exit)<1.4)return {kind:"exit",text:S.enemies.some(e=>e.boss)?"Портал закрыт: победите Дискоядро":"E — перейти в безопасный магазин"};
+ if(dist(p,S.map.exit)<1.4){
+  const boss=S.enemies.find(e=>e.boss&&e.hp>0);
+  return {kind:"exit",text:boss
+   ?boss.bossKind==="donkey"?"Маяк заглушён: победите Большого осла":"Портал закрыт: победите Дискоядро"
+   :"E — перейти в безопасный магазин"};
+ }
  const loot=S.loot.find(o=>o.w&&dist(o,p)<=INVENTORY_RADIUS);
  if(loot)return {kind:"loot",obj:loot,text:"E — На полу · оружие в радиусе 5 м · Tab — инвентарь"};
  return null;
@@ -4418,6 +4673,7 @@ function ellipse(x,y,rx,ry,color){
  ctx.fillStyle=color;ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.fill();
 }
 function drawActor(a,player=false){
+ if(!player&&a.bossKind==="donkey"){drawDonkey(a);return}
  const pos=project(a.x,a.y),boss=a.boss,t=player?null:ENEMY_TYPES[a.type];
  ellipse(pos.x,pos.y,player?14:boss?27:13,6,"#3e3a6440");
  if(player&&S.p.inv>0&&Math.floor(performance.now()/65)%2)ctx.globalAlpha=.55;
@@ -4524,6 +4780,7 @@ function draw(){
   }else drawActor(o,o===S.p);
  }
  for(const b of S.bullets){
+  if(b.donkeyPellet){drawDonkeyPellet(b);continue}
   const p=project(b.x,b.y,15);
   ellipse(p.x,p.y,b.enemy?4:3,b.enemy?4:3,b.enemy?"#cf234e":"#fff");
   ctx.strokeStyle=b.enemy?"#fff":"#178dab";ctx.lineWidth=1;ctx.stroke();
@@ -5011,7 +5268,47 @@ function testCapDrops(){
  check("Старое сохранение получает пустой список крышек",legacy.caps.length===0);
  return results;
 }
+function testDonkeyBoss(){
+ const results=[];
+ const check=(name,ok)=>results.push({name,ok:Boolean(ok)});
+ check("Осёл только на каждом десятом уровне",
+  [10,20,30,100].every(l=>bossKindForLevel(l)==="donkey")&&
+  [0,1,5,15,25].every(l=>bossKindForLevel(l)!=="donkey"));
+ const first=donkeyStats(1),second=donkeyStats(2),third=donkeyStats(3);
+ check("Здоровье, размер и урон растут",
+  first.hp<second.hp&&second.hp<third.hp&&
+  first.scale<second.scale&&second.scale<third.scale&&
+  first.damage<second.damage&&second.damage<third.damage);
+ check("Атаки ускоряются, дроби становится больше",
+  first.cooldown>second.cooldown&&first.pellets<second.pellets);
+ check("Количество дроби и призыв ограничены",
+  donkeyStats(100).pellets===12&&donkeyStats(100).summonCount===4&&
+  donkeyStats(100).summonTotal===24&&donkeyStats(100).scale<2.7);
+ const e={bossKind:"donkey",donkeyRank:2,hp:900,max:2100,wind:.4,
+  cd:.7,summonWait:3,summonedCount:4,donkeyAction:"summon",angle:1};
+ normalizeDonkey(e,20);
+ const saved=JSON.stringify(e),copy=JSON.parse(saved);
+ normalizeDonkey(copy,20);
+ check("Загрузка не лечит босса и сохраняет фазу призыва",
+  JSON.stringify(copy)===saved&&copy.hp===900&&copy.wind===.4);
+ let hitOK=true,muzzlesOK=true;
+ for(const angle of [0,Math.PI/2,Math.PI,Math.PI*1.5]){
+  const actor={x:5,y:5,bossKind:"donkey",donkeyRank:2,angle};
+  const path=donkeyHitPath(actor);
+  if(!npcHitContext.isPointInPath(path,0,-25)||
+     npcHitContext.isPointInPath(path,65,-95))hitOK=false;
+  const muzzles=donkeyMuzzles(actor);
+  if(muzzles.length!==2||dist(muzzles[0],muzzles[1])<=0||
+     muzzles.some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y)))muzzlesOK=false;
+ }
+ check("Хитбокс тела и пустого пространства",hitOK);
+ check("Два разных источника дроби при любом направлении",muzzlesOK);
+ check("Обычный босс сохраняет прежний масштаб",
+  enemyScale({boss:true})===1.65&&enemyScale({boss:false})===1);
+ return results;
+}
 function runTests(){
+ const donkeyChecks=testDonkeyBoss();
  const capChecks=testCapDrops();
  const knifeChecks=testKnife();
  const inventoryChecks=testInventoryTransfers();
@@ -5156,6 +5453,8 @@ function runTests(){
  <p>Классы оружия: ${gunClasses.size}/${CLASSES.length} · отделки: ${gunFinishes.size}/6 · ${gunClasses.size===CLASSES.length&&gunFinishes.size===6?"OK":"ОШИБКА"}</p>
  <p>Монотонный рост цены кейса: ${limits?"OK":"ОШИБКА"}</p>
  <p>JSON-сериализация текущего состояния: ${roundtrip?"OK":"ОШИБКА"}</p>
+ <h3>Большой осёл</h3>
+ ${donkeyChecks.map(t=>`<p class="small">${t.ok?"OK":"ОШИБКА"} — ${t.name}</p>`).join("")}
  <h3>Противники</h3>
  <p>Подкрепления: 2 NPC / 15 с, проверка границ экрана: ${npcMechanics.spawnOK?"OK":"ОШИБКА"}</p>
  <p>Хитбокс: голова, головной убор, одежда, ноги и оружие: ${npcMechanics.hitOK?"OK":"ОШИБКА"}</p>
@@ -5199,7 +5498,10 @@ function loadRun(){
   S.p.weapons=S.p.weapons.map(w=>w??null);
   if(S.p.slot!==0&&S.p.slot!==1)S.p.slot=0;
   if(!activeWeapon())S.p.reload=0;
-  for(const e of S.enemies)equipEnemy(e);
+  for(const e of S.enemies){
+   normalizeDonkey(e,S.level);
+   equipEnemy(e);
+  }
   S.medkits=Array.isArray(S.medkits)?S.medkits.filter(m=>
    m&&Number.isFinite(m.x)&&Number.isFinite(m.y)&&!wall(m.x,m.y)
   ):[];
@@ -6126,6 +6428,7 @@ input {
 const actorWalkStates = new WeakMap();
 
 npcHitPath=function(a){
+ if(a.bossKind==="donkey")return donkeyHitPath(a);
  const path=new Path2D(),t=ENEMY_TYPES[a.type];
  const behavior=enemyBehaviorStates.get(a);
  const mode=!a.boss&&behavior?.map===S?.map?behavior.mode:"";
@@ -6290,6 +6593,7 @@ function drawIdleHands(state,coat){
 
 drawActor = function(a, player = false) {
     if(!player&&a.hp<=0)return;
+    if(!player&&a.bossKind==="donkey"){drawDonkey(a);return}
     const p = project(a.x, a.y);
     const boss = !!a.boss;
     const scale = boss ? 1.65 : 1;
@@ -6751,7 +7055,7 @@ ctx.restore();
     }
 
     for (const e of S.enemies) {
-      if (visible(e.x, e.y)) {
+      if (visible(e.x, e.y,Math.max(150,100*enemyScale(e)))) {
         objects.push({ type: "actor", value: e, depth: e.x + e.y });
       }
     }
@@ -6828,7 +7132,7 @@ ctx.restore();
 
     // Предупреждения рисуются поверх окружения для читаемости.
     for (const e of S.enemies) {
-      if (e.hp <= 0 || !visible(e.x, e.y)) continue;
+      if (e.hp <= 0 || e.bossKind==="donkey" || !visible(e.x, e.y)) continue;
       const behavior = enemyBehaviorStates.get(e);
       const alerted = behavior?.map === S.map && behavior.alert > 0;
       if (!alerted && !(e.wind > 0)) continue;
@@ -6857,6 +7161,7 @@ ctx.restore();
 
     for (const b of S.bullets) {
       if (!visible(b.x, b.y, 20)) continue;
+      if(b.donkeyPellet){drawDonkeyPellet(b);continue}
 
       const p = project(b.x, b.y, 19);
       const prev = project(b.x - b.vx * .012, b.y - b.vy * .012, 19);
