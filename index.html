@@ -643,10 +643,45 @@ details[open] summary {
   border-top: 2px solid #897251;
 }
 
+.inventory-entry {
+  min-width: 0;
+}
+
+.inventory-entry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.inventory-entry-actions button {
+  flex: 1 1 100%;
+  min-width: 0;
+  padding: 6px;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 900px) {
+  #content.inventory-comparison-window {
+    flex-shrink: 0;
+    width: min(930px, calc(100vw - 352px));
+    margin-right: 312px;
+  }
+}
+
+@media (min-width: 900px) and (max-width: 1100px) {
+  .inventory-comparison-window .inventory-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .inventory-tooltip {
   position: fixed;
   z-index: 120;
-  width: min(390px, calc(100vw - 16px));
+  pointer-events: none;
+  overflow-wrap: anywhere;
+  width: min(300px, calc(100vw - 16px));
   max-height: calc(100vh - 16px);
   overflow: auto;
   overscroll-behavior: contain;
@@ -3812,6 +3847,67 @@ function stats(w, reference) {
     </p>
   `;
 }
+function weaponDifferences(w,reference){
+ const fragment=document.createDocumentFragment();
+ const message=value=>{
+  const el=document.createElement("div");
+  el.className="small";
+  el.textContent=value;
+  fragment.appendChild(el);
+ };
+ if(!w||!reference){
+  message(!w&&!reference?"Отличий нет.":
+   "Сравнение огнестрельного и холодного оружия недоступно.");
+  return fragment;
+ }
+ const degrees=value=>value*180/Math.PI;
+ const fields=[
+  ["Урон одного снаряда",w.damage,reference.damage,0,"HP"],
+  ["Снарядов за выстрел",w.pellets,reference.pellets,0,""],
+  ["Темп стрельбы",w.rate,reference.rate,1,"/с"],
+  ["Размер магазина",w.mag,reference.mag,0,""],
+  ["Перезарядка",w.reload,reference.reload,2,"с",true],
+  ["Разброс",degrees(w.spread),degrees(reference.spread),1,"°",true],
+  ["Дальность",w.range,reference.range,1,"м"],
+  ["Скорость снаряда",w.speed,reference.speed,1,"м/с"],
+  ["Шанс крита",w.crit*100,reference.crit*100,1,"п.п."],
+  ["Множитель крита",w.critPower,reference.critPower,2,"×"],
+  ["Рикошеты",w.effect===3?1:0,reference.effect===3?1:0,0,""],
+  ["Патроны в магазине",w.ammo,reference.ammo,0,""],
+  ["Запас патронов",w.reserve,reference.reserve,0,""]
+ ];
+ for(const [label,value,other,digits,unit,lowerBetter=false] of fields){
+  if(!Number.isFinite(value)||!Number.isFinite(other))continue;
+  const difference=Number((
+   Number(value.toFixed(digits))-Number(other.toFixed(digits))
+  ).toFixed(digits));
+  if(difference===0)continue;
+  const row=document.createElement("div");
+  row.className="weapon-stat";
+  const name=document.createElement("span");
+  name.textContent=label;
+  const badge=document.createElement("span");
+  const better=lowerBetter?difference<0:difference>0;
+  badge.className="weapon-stat__value weapon-diff weapon-diff--"+
+   (better?"better":"worse");
+  const amount=Math.abs(difference).toLocaleString("ru-RU",{
+   minimumFractionDigits:digits,maximumFractionDigits:digits
+  });
+  badge.textContent=(difference>0?"+":"−")+" "+amount+(unit?" "+unit:"");
+  badge.title=better?"Лучше активного оружия":"Хуже активного оружия";
+  row.append(name,badge);
+  fragment.appendChild(row);
+ }
+ if(w.effect!==reference.effect){
+  const effect=document.createElement("div");
+  effect.className="weapon-effect";
+  effect.textContent="Эффект: "+(EFFECTS[reference.effect]?.name||"Неизвестный")+
+   " → "+(EFFECTS[w.effect]?.name||"Неизвестный");
+  fragment.appendChild(effect);
+ }
+ if(!fragment.childNodes.length)message("Отличий нет.");
+ return fragment;
+}
 function collect(w){
  const signature=[w.ci,w.mi,w.bi,w.gi,w.rare,w.effect].join("-");
  if(!meta.collection.includes(signature)){meta.collection.push(signature);persistMeta()}
@@ -3907,8 +4003,8 @@ function inventoryWindow(sh=null){
   </header>
   <p><b>Деньги: ${owner.money} ¤</b> · Активный слот: ${player.slot+1}</p>
   <p class="small">Клик по руке — выбрать активный слот для сравнения.
-   Наведение или клик по оружию — характеристики и действия.
-   Перетащите оружие на руку или в раздел «На полу».</p>
+   Наведение на оружие — только отличия от активного слота.
+   Кнопки под предметом — подбор или покупка. Также можно перетащить оружие на руку или в раздел «На полу».</p>
   <div class="inventory-layout">
    <section aria-label="Персонаж и оружейные слоты">
     <div class="inventory-character">
@@ -3943,11 +4039,14 @@ function inventoryWindow(sh=null){
    <p class="small">Перенос товара в руку — покупка по указанной цене.
     Прежнее оружие окажется на полу. Выбрасывание не продаёт оружие.</p>
    <div id="inventoryShopList" class="inventory-list"></div></section>`:""}
-  <div id="inventoryTooltip" class="inventory-tooltip panel" role="dialog"
-   aria-label="Характеристики и действия с оружием" tabindex="-1" hidden></div>
+  <div id="inventoryTooltip" class="inventory-tooltip panel" role="tooltip"
+   aria-label="Отличия от активного оружия" hidden></div>
  </div>`);
  const root=$("#inventoryRoot"),tip=$("#inventoryTooltip");
- let hideTimer=0,dragged=null;
+ const content=$("#content");
+ content.classList.add("inventory-comparison-window");
+ $("#modal").appendChild(tip);
+ let dragged=null,inspectedElement=null;
  const isOpen=()=>S===owner&&!owner.dead&&!owner.between&&paused&&
   owner.p===player&&owner.map===map&&root.isConnected&&
   !$("#modal").classList.contains("hidden");
@@ -3960,13 +4059,10 @@ function inventoryWindow(sh=null){
   return entry.kind==="shop"&&sh&&map.shops.includes(sh)&&
    dist(sh,player)<1.5&&sh.items.includes(entry.w);
  };
- const stopHide=()=>{clearTimeout(hideTimer);hideTimer=0};
- const hideTip=()=>{stopHide();tip.hidden=true};
- const scheduleHide=()=>{
-  stopHide();
-  hideTimer=setTimeout(()=>{
-   if(!tip.contains(document.activeElement))tip.hidden=true;
-  },220);
+ const hideTip=()=>{
+  tip.hidden=true;
+  inspectedElement?.removeAttribute("aria-describedby");
+  inspectedElement=null;
  };
  const redraw=(focusId=null)=>{
   inventoryWindow(sh);
@@ -4015,18 +4111,32 @@ function inventoryWindow(sh=null){
   parent.appendChild(el);
   return el;
  };
- const inspect=(entry,x,y)=>{
-  if(!validEntry(entry))return;
-  stopHide();
-  tip.replaceChildren();
-  const actions=document.createElement("div");
-  actions.className="inventory-tooltip-actions";
-  tip.appendChild(actions);
-  if(entry.kind==="hand"){
-   button(actions,"Выкинуть",()=>{
-    if(validEntry(entry))dropSlot(entry.slot);
-   },!entry.w);
-  }else{
+ const inspect=entry=>{
+  if(!validEntry(entry)||!inspectedElement||dragged)return;
+  tip.replaceChildren(weaponDifferences(entry.w,player.weapons[player.slot]));
+  tip.setAttribute("aria-label",`Отличия от активного слота ${player.slot+1}`);
+  inspectedElement.setAttribute("aria-describedby",tip.id);
+  const rect=content.getBoundingClientRect();
+  tip.style.maxHeight=(innerWidth>=900
+   ?Math.max(40,innerHeight-16)
+   :Math.max(40,Math.min(innerHeight-16,innerHeight*.4)))+"px";
+  tip.hidden=false;
+  tip.scrollTop=0;
+  const width=tip.offsetWidth,height=tip.offsetHeight;
+  const left=innerWidth>=900?rect.right+12:innerWidth-width-8;
+  const top=innerWidth>=900?rect.top:innerHeight-height-8;
+  tip.style.left=clamp(left,8,Math.max(8,innerWidth-width-8))+"px";
+  tip.style.top=clamp(top,8,Math.max(8,innerHeight-height-8))+"px";
+ };
+ const attach=(el,entry)=>{
+  if(entry.kind!=="hand"){
+   const wrapper=document.createElement("div");
+   wrapper.className="inventory-entry";
+   el.replaceWith(wrapper);
+   wrapper.appendChild(el);
+   const actions=document.createElement("div");
+   actions.className="inventory-entry-actions";
+   wrapper.appendChild(actions);
    const blocked=entry.kind==="floor"&&!lineClear(player,entry.item);
    for(const slot of [0,1]){
     button(actions,entry.kind==="shop"
@@ -4035,40 +4145,21 @@ function inventoryWindow(sh=null){
      blocked||(entry.kind==="shop"&&owner.money<entry.w.price));
    }
   }
-  button(actions,"Закрыть",hideTip);
-  const comparison=document.createElement("p");
-  comparison.className="small";
-  const reference=player.weapons[player.slot];
-  comparison.textContent=reference
-   ?`Сравнение с активным слотом ${player.slot+1}: ${reference.name}`
-   :`В активном слоте ${player.slot+1} — нож: ${KNIFE.damage} HP, ближний бой. Сравнение огнестрельных характеристик недоступно.`;
-  tip.appendChild(comparison);
-  const details=document.createElement("div");
-  details.innerHTML=stats(entry.w,reference);
-  tip.appendChild(details);
-  const ammo=document.createElement("p");
-  ammo.className="small";
-  ammo.textContent=entry.w
-   ?`Патроны: ${entry.w.ammo}/${entry.w.mag} · Запас: ${entry.w.reserve}`
-   :"Нож не требует патронов и перезарядки.";
-  tip.appendChild(ammo);
-  tip.hidden=false;
-  tip.scrollTop=0;
-  tip.style.left="8px";
-  tip.style.top="8px";
-  const width=tip.offsetWidth,height=tip.offsetHeight;
-  const left=x+14+width<=innerWidth-8?x+14:x-width-14;
-  tip.style.left=clamp(left,8,Math.max(8,innerWidth-width-8))+"px";
-  tip.style.top=clamp(y+14,8,Math.max(8,innerHeight-height-8))+"px";
- };
- const attach=(el,entry)=>{
-  el.onpointerenter=e=>inspect(entry,e.clientX,e.clientY);
-  el.onpointerleave=scheduleHide;
-  el.onfocus=()=>{
-   const rect=el.getBoundingClientRect();
-   inspect(entry,rect.right,rect.top);
+  const revealTip=()=>{
+   hideTip();
+   inspectedElement=el;
+   inspect(entry);
   };
-  el.onblur=()=>{if(!tip.contains(document.activeElement))scheduleHide()};
+  el.onpointerenter=e=>{if(e.pointerType!=="touch")revealTip()};
+  el.onpointerleave=hideTip;
+  el.onpointercancel=hideTip;
+  el.onfocus=()=>{if(el.matches(":focus-visible"))revealTip()};
+  el.onblur=hideTip;
+  el.addEventListener("wheel",e=>{
+   if(tip.hidden||inspectedElement!==el||tip.scrollHeight<=tip.clientHeight)return;
+   e.preventDefault();
+   tip.scrollTop+=e.deltaY*(e.deltaMode===1?16:e.deltaMode===2?tip.clientHeight:1);
+  },{passive:false});
   el.draggable=Boolean(entry.w);
   el.ondragstart=e=>{
    if(!entry.w||!validEntry(entry)||!e.dataTransfer){e.preventDefault();return}
@@ -4167,18 +4258,18 @@ function inventoryWindow(sh=null){
     e.clientY||el.getBoundingClientRect().top);
   }
  }
- tip.onpointerenter=stopHide;
- tip.onpointerleave=scheduleHide;
- tip.onfocusin=stopHide;
- tip.onfocusout=scheduleHide;
- const onScroll=e=>{if(!tip.contains(e.target))hideTip()};
- root.addEventListener("scroll",onScroll,true);
+ const onScroll=()=>hideTip();
+ content.addEventListener("scroll",onScroll,true);
  addEventListener("resize",hideTip);
+ addEventListener("blur",hideTip);
  inventoryCleanup=()=>{
   hideTip();
   dragged=null;
+  tip.remove();
+  content.classList.remove("inventory-comparison-window");
   removeEventListener("resize",hideTip);
-  root.removeEventListener("scroll",onScroll,true);
+  removeEventListener("blur",hideTip);
+  content.removeEventListener("scroll",onScroll,true);
  };
  on("inventoryClose",closeModal);
 }
