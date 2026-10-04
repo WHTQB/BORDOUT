@@ -148,8 +148,44 @@ h3 {
   transition: width .15s;
 }
 
-#hud .bar:nth-of-type(1) i {
-  background: var(--rust) !important;
+#playerHUD .hp-bar i {
+  background: var(--rust);
+}
+
+#lowerHUD {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr);
+  align-items: end;
+  gap: 12px;
+  pointer-events: none;
+}
+
+#playerHUD {
+  grid-column: 1;
+  grid-row: 1;
+  width: 100%;
+  max-width: 360px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+#playerHUD .hero-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+#playerHUD .hero-upgrades {
+  margin-top: 6px;
+}
+
+#hud {
+  overflow-wrap: anywhere;
 }
 
 .armor-cells {
@@ -173,11 +209,14 @@ h3 {
 }
 
 #bottom {
-  position: fixed;
-  bottom: 12px;
-  left: 12px;
-  max-width: calc(100vw - 300px);
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: center;
+  width: 100%;
+  max-width: 520px;
+  min-width: 0;
   text-align: center;
+  overflow-wrap: anywhere;
   pointer-events: none;
 }
 
@@ -199,11 +238,12 @@ h3 {
 }
 
 #ammoHUD {
-  position: fixed;
-  right: 14px;
-  bottom: 14px;
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
   width: 260px;
-  max-width: calc(100vw - 28px);
+  min-width: 0;
+  max-width: 100%;
   pointer-events: none;
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -701,10 +741,49 @@ details[open] summary {
     font-size: 12px;
   }
 
-  #bottom {
-    bottom: 270px;
+  #lowerHUD {
     left: 8px;
-    max-width: calc(100vw - 90px);
+    right: 8px;
+    bottom: 8px;
+    gap: 8px;
+  }
+
+  #playerHUD,
+  #ammoHUD {
+    padding: 8px;
+    font-size: 11px;
+  }
+
+  #playerHUD .small {
+    font-size: 10px;
+    line-height: 1.35;
+  }
+
+  #playerHUD .armor-cells {
+    gap: 2px;
+  }
+
+  #ammoHUD .ammo-weapon {
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+
+  #ammoHUD .ammo-weapon svg {
+    flex-basis: 76px;
+    width: 76px;
+    height: 38px;
+  }
+
+  #ammoHUD .ammo-loaded {
+    font-size: 36px;
+  }
+
+  #ammoHUD .ammo-reserve {
+    font-size: 22px;
+  }
+
+  #bottom {
+    max-width: 100%;
   }
 
   #hint {
@@ -731,14 +810,18 @@ details[open] summary {
 <body>
 <canvas id="game"></canvas>
 <div id="hud" class="panel"></div>
-<div id="ammoHUD" class="panel" aria-label="Боезапас активного оружия" hidden></div>
-<div id="bottom"><div id="toast"></div><div id="hint" class="panel"></div></div>
+<div id="lowerHUD">
+ <div id="playerHUD" class="panel" aria-label="Состояние героя" hidden></div>
+ <div id="bottom"><div id="toast"></div><div id="hint" class="panel"></div></div>
+ <div id="ammoHUD" class="panel" aria-label="Боезапас активного оружия" hidden></div>
+</div>
 <div id="topButtons"><button id="pauseButton">Ⅱ</button></div>
 <div id="modal"><div id="content" class="window panel"></div></div>
 
 <script>
 "use strict";
 const CFG={
+ cameraZoom:1.2,
  weaponShopChance:.85,upgradeShopChance:.7,
  baseEnemies:8,maxEnemies:25,saveSeconds:8,
  npcDetectionRadius:11.7,npcMoveMultiplier:1.7,npcFireMultiplier:1.995,
@@ -2571,10 +2654,10 @@ function patrolEnemy(e,t,dt){
 }
 function npcSpawnOutsideView(point,hero,width=W,height=H){
  const dx=point.x-hero.x,dy=point.y-hero.y;
- const x=(dx-dy)*32+width/2;
- const y=(dx+dy)*16+height/2;
- // Запас закрывает весь силуэт, оружие и смещение от тряски.
- const margin=96;
+ const x=(dx-dy)*32*CFG.cameraZoom+width/2;
+ const y=(dx+dy)*16*CFG.cameraZoom+height/2;
+ // Запас учитывает увеличенный силуэт, оружие и тряску камеры.
+ const margin=96*CFG.cameraZoom;
  return x < -margin || x > width+margin ||
   y < -margin || y > height+margin;
 }
@@ -2878,8 +2961,9 @@ function update(dt,realDt=dt){
  const runFraction=realDt>0?runTime/realDt:0;
  const speed=baseSpeed*(1+(CFG.sprintMultiplier-1)*runFraction);
  if(len)move(p,dx*speed*dt,dy*speed*dt);
- // Камера центрируется на герое; прицел считаем от точки крепления оружия.
- const screenDX=mouse.x-(W/2+4),screenDY=mouse.y-(H/2-22);
+ // Возвращаем курсор в координаты сцены до масштабирования камеры.
+ const cursor=cameraInputPoint(mouse.x,mouse.y);
+ const screenDX=cursor.x-(W/2+4),screenDY=cursor.y-(H/2-22);
  const aimX=screenDX/64+screenDY/32,aimY=-screenDX/64+screenDY/32;
  const aimLength=Math.hypot(aimX,aimY);
  if(aimLength>1e-6)aim={x:aimX/aimLength,y:aimY/aimLength};
@@ -3375,6 +3459,12 @@ function caseWindow(){
  on("recycle",()=>{S.money+=Math.round(w.price*.25);S.pending=null;save();betweenWindow()});
 }
 
+function cameraInputPoint(x,y){
+ return {
+  x:W/2+(x-W/2)/CFG.cameraZoom,
+  y:H/2+(y-H/2)/CFG.cameraZoom
+ };
+}
 function project(x,y,z=0){return {x:(x-y)*32-camera.x+W/2,y:(x+y)*16-camera.y+H/2-z}}
 function unproject(x,y){
  const a=(x+camera.x-W/2)/32,b=(y+camera.y-H/2)/16;
@@ -3556,27 +3646,30 @@ function drawMinimap(){
  dot(m.exit,"#ad3ecd",3);m.shops.forEach(s=>dot(s,"#4daf57"));
  dot(S.p,"#ed447d",3);
 }
-let lastHUD="",lastAmmoHUD="";
+let lastHUD="",lastAmmoHUD="",lastRunHUD="";
 let ammoPreviewWeapon=null,ammoPreviewHTML="";
 const ammoHUD=document.getElementById("ammoHUD");
 function drawHUD(){
  const p=S.p,w=activeWeapon(),up=Object.entries(S.up).map(([id,n])=>UPGRADES.find(u=>u.id===id).name+" "+n).join(" · ");
- const html=`<b>PRISM RUN / ${S.level} — ${THEMES[S.theme].name}</b>
- <div class="bar"><i style="width:${clamp(p.hp/p.max*100,0,100)}%;background:#ff70ad"></i></div>
- <div class="armor-cells" role="img" aria-label="Бронежилет: ${p.armor} из 10 ячеек" title="Одна ячейка полностью поглощает одно попадание">${Array.from({length:10},(_,i)=>`<i class="${i<p.armor?"":"empty"}"></i>`).join("")}</div>
+ const runHTML=`<b>ПЫЛЬНЫЙ ТРАКТ / ${S.level} — ${S.map.layout?.name||THEMES[S.theme].name} · ${THEMES[S.theme].name}</b>
+ <div class="small">Seed забега: ${S.seed} · карты: ${S.map.seed}</div>`;
+ if(runHTML!==lastRunHUD){$("#hud").innerHTML=runHTML;lastRunHUD=runHTML}
+ const html=`<div class="armor-cells" role="img" aria-label="Бронежилет: ${p.armor} из 10 ячеек" title="Одна ячейка полностью поглощает одно попадание">${Array.from({length:10},(_,i)=>`<i class="${i<p.armor?"":"empty"}"></i>`).join("")}</div>
+ <div class="bar hp-bar" title="Здоровье"><i style="width:${clamp(p.hp/p.max*100,0,100)}%"></i></div>
  <div class="bar" title="Стамина: Shift + движение — бег"><i style="width:${clamp(p.stamina/staminaStats(S.up).max*100,0,100).toFixed(1)}%;background:${p.exhausted?"#b36a3b":"#83964d"}"></i></div>
- <div>${Math.ceil(p.hp)}/${p.max} HP · Броня ${p.armor}/10 · ${Math.ceil(p.stamina)}/${staminaStats(S.up).max} STA · <b>${S.money} ¤</b></div>
- <div style="margin-top:6px;color:${RARITY[w.rare].color}"><b>[${p.slot+1}] ${w.name}</b> · ${RARITY[w.rare].name}</div>
+ <div class="hero-values"><span>Броня ${p.armor}/10</span><span>${Math.ceil(p.hp)}/${p.max} HP</span><span>${Math.ceil(p.stamina)}/${staminaStats(S.up).max} STA</span><b>${S.money} ¤</b></div>
  <div>${p.exhausted?"Истощение: восстановите 25% STA и отпустите Shift":p.sprinting&&!paused?"Бег":`Бег: ${(p.stamina/staminaStats(S.up).drain).toFixed(1)} с · Shift`}</div>
- <div class="small">${up||"Улучшений пока нет"}<br>Seed забега: ${S.seed} · карты: ${S.map.seed}</div>`;
- if(html!==lastHUD){$("#hud").innerHTML=html;lastHUD=html}
+ <div class="small hero-upgrades">${up||"Улучшений пока нет"}</div>`;
+ const playerHUD=document.getElementById("playerHUD");
+ playerHUD.hidden=false;
+ if(html!==lastHUD){playerHUD.innerHTML=html;lastHUD=html}
  ammoHUD.hidden=paused||S.dead;
  if(!ammoHUD.hidden){
   if(ammoPreviewWeapon!==w){
    ammoPreviewWeapon=w;
    ammoPreviewHTML=weaponPreview(w);
   }
-  const ammoHTML=`<div class="ammo-weapon">${ammoPreviewHTML}<span style="color:${RARITY[w.rare].color}">${CLASSES[w.ci].name}<br>${RARITY[w.rare].name}</span></div>
+  const ammoHTML=`<div class="ammo-weapon">${ammoPreviewHTML}<span style="color:${RARITY[w.rare].color}">${w.name}<br>${CLASSES[w.ci].name}<br>${RARITY[w.rare].name}</span></div>
    <div class="ammo-label">Слот ${p.slot+1} · в магазине</div>
    <div class="ammo-loaded${w.ammo===0?" ammo-empty":""}">${w.ammo}<span class="ammo-capacity"> / ${w.mag}</span></div>
    <div class="ammo-reserve"><span class="ammo-label">Запас</span> ${w.reserve}</div>
@@ -4571,9 +4664,12 @@ input {
   }
 
   function visible(x, y, margin = 150) {
-    const p = project(x, y);
-    return p.x > -margin && p.x < W + margin &&
-      p.y > -margin && p.y < H + margin;
+    const p = project(x, y),zoom=CFG.cameraZoom;
+    const screenX=W/2+(p.x-W/2)*zoom;
+    const screenY=H/2+(p.y-H/2)*zoom;
+    const padding=margin*zoom;
+    return screenX > -padding && screenX < W + padding &&
+      screenY > -padding && screenY < H + padding;
   }
 
   function drawBuilding(b, theme) {
@@ -5385,14 +5481,20 @@ ctx.restore();
       );
     }
 
+    // Масштабируем сцену целиком: персонажей, здания, пули и эффекты.
+    // Существующий ctx.restore() снимает масштаб перед миникартой и прицелом.
+    ctx.translate(W/2,H/2);
+    ctx.scale(CFG.cameraZoom,CFG.cameraZoom);
+    ctx.translate(-W/2,-H/2);
+
     // Единая песчаная поверхность без шахматной сетки.
     ctx.fillStyle = theme.sand;
     ctx.fillRect(-20, -20, W + 40, H + 40);
 
     const corners=[
-      unproject(-180,-180),unproject(W+180,-180),
-      unproject(-180,H+180),unproject(W+180,H+180)
-    ];
+      cameraInputPoint(-180,-180),cameraInputPoint(W+180,-180),
+      cameraInputPoint(-180,H+180),cameraInputPoint(W+180,H+180)
+    ].map(p=>unproject(p.x,p.y));
     const xMin=Math.max(0,Math.floor(Math.min(...corners.map(p=>p.x)))-1);
     const xMax=Math.min(n-1,Math.ceil(Math.max(...corners.map(p=>p.x)))+1);
     const yMin=Math.max(0,Math.floor(Math.min(...corners.map(p=>p.y)))-1);
@@ -5707,15 +5809,6 @@ ctx.restore();
 
   drawHUD = function() {
     originalHUD();
-
-    const title = $("#hud > b");
-    if (title) {
-      title.textContent =
-        `ПЫЛЬНЫЙ ТРАКТ / ${S.level} — ${S.map.layout?.name||THEMES[S.theme].name} · ${THEMES[S.theme].name}`;
-    }
-
-    const bars = document.querySelectorAll("#hud .bar i");
-    if (bars[0]) bars[0].style.background = "#ad543c";
 
     const hint = $("#hint");
     hint.textContent = hint.textContent
