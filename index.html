@@ -116,6 +116,15 @@ h3 {
   overflow-wrap: anywhere;
 }
 
+#content .death-title {
+  font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
+  font-size: clamp(48px, 10vw, 80px);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 2px;
+  color: #a52d21;
+}
+
 .panel {
   padding: 12px 16px;
   border: 2px solid #4d4030;
@@ -1254,7 +1263,13 @@ const CLASSES=[
  {name:"Пулемёт",model:"Бастион",damage:11,rate:6.5,mag:60,reload:3.2,
  spread:.085,speed:14,pellets:1,range:14},
  {name:"Двустволка",model:"Гром",damage:9,rate:2,mag:2,reload:1.6,
- spread:.30,speed:11,pellets:7,range:6}
+ spread:.30,speed:11,pellets:7,range:6},
+ {name:"Лазерная винтовка",model:"Фотон",damage:22,rate:4,mag:20,reload:1.7,
+ spread:.018,speed:28,pellets:1,range:15},
+ {name:"Огнемёт",model:"Горнило",damage:4,rate:10,mag:70,reload:2.8,
+ spread:.19,speed:7,pellets:2,range:4},
+ {name:"Кислотомёт",model:"Едкий",damage:19,rate:2.5,mag:14,reload:2.2,
+ spread:.07,speed:9,pellets:1,range:9}
 ];
 const MAKERS=[
  {name:"Luma",rate:1.12,damage:.94,color:"#6adfff"},
@@ -1275,8 +1290,30 @@ const EFFECTS=[
  {name:"Кинетика",adj:"Хромовый",cost:1},
  {name:"Поджог · 4 урона/с, 2 с",adj:"Пламенный",cost:.85},
  {name:"Замедление · 45%, 2 с",adj:"Ледяной",cost:.92},
- {name:"Рикошет · 1 от стены",adj:"Прыгучий",cost:.9}
+ {name:"Рикошет · 1 от стены",adj:"Прыгучий",cost:.9},
+ {name:"Коррозия · 6 урона/с, 3 с",adj:"Кислотный",cost:.9}
 ];
+function weaponShotKind(w){
+ return w?.ci===8?"laser":w?.ci===9?"flame":w?.ci===10?"acid":"";
+}
+function weaponShotExtra(w){
+ return {
+  shotKind:weaponShotKind(w),
+  effect:w.effect,bounce:w.effect===3?1:0,life:w.range/w.speed
+ };
+}
+function normalizeAcid(actor){
+ actor.acid=Number.isFinite(actor.acid)?clamp(actor.acid,0,3):0;
+}
+function stepAcid(actor,dt){
+ if(!Number.isFinite(dt)||dt<=0||!(actor.hp>0))return 0;
+ normalizeAcid(actor);
+ const elapsed=Math.min(dt,actor.acid);
+ actor.acid=Math.max(0,actor.acid-dt);
+ const damage=Math.min(actor.hp,6*elapsed);
+ actor.hp=Math.max(0,actor.hp-damage);
+ return damage;
+}
 const ENEMY_TYPES=[
  {name:"Пульсар",hp:42,speed:1.1,range:6,pattern:1,color:"#ed4d87",shape:0},
  {name:"Веерник",hp:57,speed:.85,range:4.5,pattern:3,color:"#9558df",shape:1},
@@ -1351,7 +1388,9 @@ function weapon(seed,level,minRarity=0){
  const roll=r(),boost=Math.min(.18,level*.009);
  let rare=roll<.03+boost*.2?3:roll<.13+boost?2:roll<.4+boost?1:0;
  rare=Math.max(rare,minRarity);
- const effect=rare===0?0:Math.floor(r()*EFFECTS.length);
+ // Старым семействам оставляем прежние четыре случайных эффекта.
+ const rolledEffect=rare===0?0:Math.floor(r()*4);
+ const effect=ci===9?1:ci===10?4:rolledEffect;
  const power=(1+(level-1)*.12)*RARITY[rare].power;
  const mag=Math.round(c.mag*g.capacity);
  return {seed,level,ci,mi,bi,gi,rare,effect,
@@ -1372,6 +1411,7 @@ function equipEnemy(e,state=S){
   e.weapon=weapon(seed,state.level,e.boss||elite?2:0);
  }
  if(!Number.isFinite(e.reload)||e.reload<0)e.reload=0;
+ normalizeAcid(e);
  return e.weapon;
 }
 
@@ -1390,9 +1430,9 @@ function weaponArt(w){
   {name:"Медный сплав",body:"#b17c4f",grip:"#634c47"}
  ];
  const finish=finishes[seed%finishes.length];
- const ci=clamp(Number.isInteger(w.ci)?w.ci:0,0,7);
- const lengths=[20,34,36,45,27,26,42,29];
- const heights=[7,9,10,7,9,9,13,11];
+ const ci=clamp(Number.isInteger(w.ci)?w.ci:0,0,CLASSES.length-1);
+ const lengths=[20,34,36,45,27,26,42,29,40,33,35];
+ const heights=[7,9,10,7,9,9,13,11,10,12,11];
  const length=lengths[ci]+(w.bi===1?7:w.bi===0?-4:0);
  const height=heights[ci];
  const rect=(x,y,width,h)=>`M${x} ${y}h${width}v${h}h${-width}Z`;
@@ -1426,7 +1466,24 @@ function weaponArt(w){
  for(let i=0;i<3;i++){
   trim+=rect(i*5,-height/2+1,pattern===0?2:4,pattern===2?2:height-2);
  }
- const accent=["#c8b885","#df7e37","#79c6d2","#b79be2"][w.effect]||"#c8b885";
+ if(ci===8){
+  // Катушки, энергоячейка и линза вместо обычного ствола.
+  body+=rect(-9,-7,22,14)+rect(0,7,12,w.gi===1?11:7);
+  metal=rect(14,-3,length-14,6)+rect(length-4,-6,5,12);
+  for(let x=17;x<length-5;x+=6)trim+=rect(x,-5,3,10);
+  trim+=rect(-6,-4,15,3)+rect(length-2,-4,3,8);
+ }else if(ci===9||ci===10){
+  // Баллон, шланг и сопло; ёмкость видна по размеру бака.
+  body+=rect(-14,-11,12,w.gi===1?28:23);
+  grip+="M-8 10L5 17L18 10L17 7L5 13L-7 6Z";
+  metal=rect(14,-3,length-14,6)+rect(length-5,-6,6,12);
+  trim+=rect(-11,-7,6,w.gi===1?19:14);
+  if(ci===9)metal+=rect(length-9,5,10,2);
+  else trim+=rect(3,-4,10,7);
+ }
+ const accent=ci===8?["#5fe9ff","#fa7652","#91cfff","#c18dff"][w.effect%4]:
+  ci===9?"#ff9b35":ci===10?"#98ed42":
+  ["#c8b885","#df7e37","#79c6d2","#b79be2","#98ed42"][w.effect]||"#c8b885";
  art={
   name:finish.name,bodyColor:finish.body,gripColor:finish.grip,accent,
   muzzleLength:length,
@@ -1498,6 +1555,7 @@ function normalizeArmor(state){
  p.armorVersion=1;
  p.burn=Number.isFinite(p.burn)?clamp(p.burn,0,2):0;
  p.slow=Number.isFinite(p.slow)?clamp(p.slow,0,2):0;
+ normalizeAcid(p);
 }
 function absorbArmorHit(p,amount){
  if(!Number.isFinite(amount)||amount<=0)return 0;
@@ -1621,7 +1679,8 @@ let audio=null,aim={x:1,y:0},lastTime=performance.now();
 const soundRandom=rng(0xA71D105);
 const soundBank=new Map(),soundVoices=new Set();
 const SHOT_SOUNDS=[
- "pistol","rifle","shotgun","carbine","revolver","smg","machinegun","doublebarrel"
+ "pistol","rifle","shotgun","carbine","revolver","smg","machinegun","doublebarrel",
+ "laser","flamethrower","acid"
 ];
 let soundMaster=null,soundEffects=null,soundSteps=null,soundAmbient=null;
 let soundLoading=null,soundReady=false,soundError="";
@@ -1734,6 +1793,34 @@ function encodeSoundWav(channels,sampleRate=22050){
 }
 function synthesizeSound(name,variant=0){
  const sr=22050,r=rng(hash("dust-wav-v1:"+name+":"+variant));
+ if(name==="laser"||name==="flamethrower"||name==="acid"){
+  const duration=name==="laser"?.24:name==="flamethrower"?.16:.3;
+  const data=new Float32Array(Math.ceil(duration*sr));
+  const pitch=.94+r()*.12;
+  let phase=0,low=0;
+  for(let i=0;i<data.length;i++){
+   const t=i/sr,noise=r()*2-1;
+   low+=(name==="flamethrower"?.08:.2)*(noise-low);
+   const frequency=name==="laser"?220+1900*Math.exp(-t*19):
+    name==="flamethrower"?80+20*Math.sin(t*60):180+550*Math.exp(-t*22);
+   phase+=2*Math.PI*frequency*pitch/sr;
+   const attack=clamp(t/.004,0,1);
+   const release=clamp((duration-t)/.035,0,1);
+   let sample;
+   if(name==="laser"){
+    sample=(Math.sin(phase)+.2*Math.sin(phase*2.01))*Math.exp(-t*12)*.6;
+   }else if(name==="flamethrower"){
+    sample=(low*2+(noise-low)*.12+Math.sin(phase)*.08)*
+     (.8+.2*Math.sin(t*97))*.65;
+   }else{
+    const bubbles=.35+.65*Math.pow(Math.sin(t*65),2);
+    sample=(low*1.3+bubbles*Math.sin(phase)*.35+
+     (noise-low)*.18)*Math.exp(-t*7);
+   }
+   data[i]=Math.tanh(sample)*attack*release*.75;
+  }
+  return encodeSoundWav([data],sr);
+ }
  if(name==="coin_pickup"){
   const duration=.19,pitch=.97+r()*.06;
   const data=new Float32Array(Math.ceil(duration*sr));
@@ -2158,7 +2245,7 @@ function playWav(name,{volume=1,rate=1,actor=null,step=false}={}){
 function playPlayerShot(w){
  const name=SHOT_SOUNDS[w.ci]||SHOT_SOUNDS[0];
  playWav(name,{
-  volume:.85,
+  volume:w.ci===9?.5:.85,
   rate:(w.bi===0?1.06:w.bi===1?.94:1)*(.98+soundRandom()*.04)
  });
 }
@@ -2295,6 +2382,7 @@ function toast(t){$("#toast").textContent=t;toastTimer=3}
 function persistMeta(){try{localStorage.setItem("prism-meta",JSON.stringify(meta))}catch{}}
 function save(){
  if(!S||S.dead)return;
+ S.entitySerial=serial;
  try{localStorage.setItem("prism-save",JSON.stringify(S));return true}
  catch{toast("Сохранение недоступно в этом браузере");return false}
 }
@@ -2317,7 +2405,7 @@ function on(id,fn){const el=document.getElementById(id);if(el)el.onclick=fn}
 function newRun(seed){
  const root=hash(seed||Date.now());
  S={seed:root,level:1,money:35,themeBag:[],theme:0,dead:false,between:false,
- pity:0,up:{},bullets:[],fx:[],loot:[],
+ npcKills:0,pity:0,up:{},bullets:[],fx:[],loot:[],
  p:{x:2.5,y:2.5,hp:100+Math.min(10,meta.best*2),max:100+Math.min(10,meta.best*2),
  armor:10,maxArmor:10,armorVersion:1,burn:0,slow:0,speed:2.8,inv:0,
  stamina:CFG.staminaMax,staminaWait:0,exhausted:false,sprinting:false,
@@ -2450,6 +2538,7 @@ function drawDonkey(e){
  }
  if(e.burn>0)text("♨",p.x+35,top-7,16,"#ff812a");
  if(e.slow>0)text("❄",p.x-35,top-7,16,"#79b9c1");
+ if(e.acid>0)text("☣",p.x+55,top-7,16,"#8aca35");
 }
 function fireDonkey(e){
  const stats=donkeyStats(e.donkeyRank);
@@ -2547,6 +2636,12 @@ function drawDonkeyPellet(b,z=19){
 }
 function buildLevel(){
  stopGameSounds();
+ delete S.houseWorld;
+ S.houseRooms=[];
+ S.outdoorScene=null;
+ S.houseIndex=null;
+ S.houseReturn=null;
+ S.doorWait=0;
  shotShake=0;
  const seed=hash(S.seed+":"+S.level),r=rng(seed);
  S.map=generateMap(seed,S.level);
@@ -2555,7 +2650,7 @@ function buildLevel(){
  S.theme=S.themeBag.pop();S.between=false;
  S.p.x=S.map.start.x;S.p.y=S.map.start.y;
  S.p.inv=1;S.p.reload=0;S.p.shot=0;
- S.p.burn=0;S.p.slow=0;
+ S.p.burn=0;S.p.slow=0;S.p.acid=0;
  S.p.stamina=staminaStats(S.up).max;
  S.p.staminaWait=0;S.p.exhausted=false;S.p.sprinting=false;
  S.bullets=[];S.fx=[];S.loot=[];S.enemies=[];S.props=[];
@@ -2778,7 +2873,7 @@ function shoot(){
  const angle=Math.atan2(aim.y,aim.x),muzzle=muzzlePosition(p,angle,w);
  for(let i=0;i<w.pellets;i++)
   projectile(muzzle.x,muzzle.y,angle+(Math.random()-.5)*w.spread*2,w.speed,w.damage,false,
-   {effect:w.effect,bounce:w.effect===3?1:0,life:w.range/w.speed,
+   {...weaponShotExtra(w),
     launch:{x:p.x,y:p.y},
     crit:Math.random()<w.crit+(S.up.crit||0)*.06,critPower:w.critPower});
  shotShake=Math.max(shotShake,2);playPlayerShot(w);
@@ -2821,6 +2916,7 @@ function emitShotVisual(actor,w=null){
  const visual=combatActorState(actor);
  visual.flashUntil=state.time+.09;
  visual.weapon=w;
+ if(weaponShotKind(w))return;
  const angle=actor===S.p?Math.atan2(aim.y,aim.x):(actor.angle||0);
  const direction=angle+Math.PI/2+(combatRandom()-.5)*.6;
  const scale=actor.boss?1.65:1;
@@ -2905,18 +3001,71 @@ function emitBulletDrop(b){
  if(!state)return;
  const drops=state.bulletDrops;
  if(drops.length>=700)drops.shift();
+ if(b.shotKind==="laser"||b.shotKind==="flame"||b.shotKind==="acid"){
+  // Только визуальный остаток: боевые параметры не копируются.
+  drops.push({
+   x:b.x,y:b.y,z:19,age:0,enemy:Boolean(b.enemy),
+   shotKind:b.shotKind,vx:b.vx,vy:b.vy,
+   vaporDuration:b.shotKind==="laser"?.45:b.shotKind==="flame"?.6:.55
+  });
+  return;
+ }
+ if(b.shotKind)return;
  // Только изображение: нет урона, коллизий и продления дальности.
  drops.push({x:b.x,y:b.y,z:19,age:0,enemy:Boolean(b.enemy),
   donkeyPellet:Boolean(b.donkeyPellet),pelletRadius:b.pelletRadius});
 }
 function stepBulletDrop(drop,dt){
+ if(drop.vaporDuration>0){
+  if(!Number.isFinite(dt)||dt<=0)return drop.age<drop.vaporDuration;
+  drop.age=Math.min(drop.vaporDuration,drop.age+dt);
+  drop.z=19+14*clamp(drop.age/drop.vaporDuration,0,1);
+  return drop.age<drop.vaporDuration;
+ }
  if(!Number.isFinite(dt)||dt<=0)return drop.age<.34;
  drop.age=Math.min(.34,drop.age+dt);
  const fall=clamp(drop.age/.16,0,1);
  drop.z=Math.max(0,19*(1-fall*fall));
  return drop.age<.34;
 }
+function drawProjectileVapor(drop){
+ const u=clamp(drop.age/drop.vaporDuration,0,1);
+ if(u>=1)return;
+ const p=project(drop.x,drop.y,drop.z);
+ if(p.x<-70||p.x>W+70||p.y<-70||p.y>H+70)return;
+ const kind=drop.shotKind;
+ const color=kind==="laser"?(drop.enemy?"#ff648a":"#56e7ff"):
+  kind==="flame"?"#ffb374":"#b6e878";
+ const mist=kind==="laser"?"#d4f5ff":kind==="flame"?"#d4c4b4":"#d3edb6";
+ const tailTime=kind==="laser"?.025:kind==="flame"?.045:.02;
+ const tailX=-(drop.vx-drop.vy)*32*tailTime;
+ const tailY=-(drop.vx+drop.vy)*16*tailTime;
+ const strength=.35+.65*soundLevel("flash",.5);
+ ctx.save();
+ const opacity=ctx.globalAlpha;
+ // Сначала гаснет исходный силуэт, затем остаются только облачка.
+ const core=clamp(1-drop.age/.14,0,1);
+ if(core>0){
+  ctx.globalAlpha=opacity*core;
+  drawSpecialProjectile(drop);
+ }
+ const cloudAlpha=Math.sin(Math.PI*u)*.55*strength;
+ const size=(kind==="flame"?3.5:2)+u*7;
+ for(let i=0;i<4;i++){
+  const fraction=i/3;
+  const side=i%2===0?-1:1;
+  const x=p.x+tailX*fraction+side*u*(4+i*2);
+  const y=p.y+tailY*fraction-u*(i%2)*5;
+  // Два полупрозрачных слоя без дорогого blur и новых частиц.
+  ctx.globalAlpha=opacity*cloudAlpha*.3;
+  ellipse(x,y,size*1.45,size*1.1,mist);
+  ctx.globalAlpha=opacity*cloudAlpha*.7;
+  ellipse(x,y,size,size*.75,color);
+ }
+ ctx.restore();
+}
 function drawBulletDrop(drop){
+ if(drop.vaporDuration>0){drawProjectileVapor(drop);return}
  const p=project(drop.x,drop.y,drop.z);
  if(p.x<-30||p.x>W+30||p.y<-40||p.y>H+30)return;
  const color=drop.donkeyPellet?"#89613d":drop.enemy?"#ea8450":"#fff0bb";
@@ -3093,6 +3242,46 @@ function drawBarrelExplosions(){
  }
  ctx.restore();
 }
+function emitSpecialImpact(b){
+ if(soundLevel("flash",.5)===0)return;
+ const color=b.shotKind==="laser"?"#65efff":
+  b.shotKind==="acid"?"#9feb45":"#ffa644";
+ for(let i=0;i<3;i++){
+  const angle=combatRandom()*Math.PI*2;
+  addCombatParticle({
+   kind:"spark",x:b.x,y:b.y,z:19,
+   vx:Math.cos(angle)*.6,vy:Math.sin(angle)*.6,
+   vz:8+combatRandom()*12,life:.2,size:2,color
+  });
+ }
+}
+function drawSpecialProjectile(b){
+ const kind=b.shotKind;
+ if(kind!=="laser"&&kind!=="flame"&&kind!=="acid")return false;
+ const p=project(b.x,b.y,19);
+ if(p.x<-60||p.x>W+60||p.y<-60||p.y>H+60)return true;
+ const tailTime=kind==="laser"?.025:kind==="flame"?.045:.02;
+ const previous=project(b.x-b.vx*tailTime,b.y-b.vy*tailTime,19);
+ const color=kind==="laser"?(b.enemy?"#ff648a":"#56e7ff"):
+  kind==="flame"?"#ff8934":"#85df35";
+ ctx.save();
+ ctx.lineCap="round";
+ ctx.strokeStyle="#33251e";
+ ctx.lineWidth=kind==="flame"?9:kind==="acid"?7:6;
+ ctx.beginPath();ctx.moveTo(previous.x,previous.y);ctx.lineTo(p.x,p.y);ctx.stroke();
+ ctx.strokeStyle=color;
+ ctx.lineWidth=kind==="flame"?7:kind==="acid"?5:3;
+ ctx.stroke();
+ if(kind==="laser"){
+  ctx.strokeStyle="#eeffff";ctx.lineWidth=1;ctx.stroke();
+ }else{
+  ellipse(p.x,p.y,kind==="flame"?5:3,kind==="flame"?5:3,color);
+  ellipse(p.x-1,p.y-1,2,2,kind==="flame"?"#ffe993":"#e4ffa3");
+ }
+ // Опасные снаряды остаются видимыми даже при отключённых вспышках.
+ ctx.restore();
+ return true;
+}
 function drawCombatGround(){
  const state=getCombatVisuals();
  if(!state)return;
@@ -3126,12 +3315,14 @@ function drawMuzzleVisual(actor,gx,gy,length){
  ctx.rotate(Math.atan2(gy,gx));
  const reach=(actor.boss?30:22)*(visual.weapon?.pellets>1?1.35:1);
  ctx.scale(.7+.3*fade,.75+.25*fade);
- ctx.shadowColor="#ffae42";
+ const kind=weaponShotKind(visual.weapon);
+ const color=kind==="laser"?"#61eaff":kind==="acid"?"#a5ed43":"#f28b2b";
+ ctx.shadowColor=color;
  ctx.shadowBlur=12;
  poly([
   {x:-2,y:0},{x:7,y:-6},{x:reach*.6,y:-3},
   {x:reach,y:0},{x:reach*.6,y:3},{x:7,y:6}
- ],"#f28b2b");
+ ],color);
  ctx.shadowBlur=0;
  poly([{x:0,y:0},{x:6,y:-2.5},{x:reach*.7,y:0},{x:6,y:2.5}],"#fff0b2");
  ctx.restore();
@@ -3228,6 +3419,7 @@ function damagePlayer(amount,direction=null,effect=0){
  if(healthDamage>0){
   if(effect===1)p.burn=2;
   if(effect===2)p.slow=2;
+  if(effect===4)p.acid=3;
  }
  emitHitVisual(p,amount,direction,healthDamage>0);
  p.inv=.3;shake=8;beep(100,.12);
@@ -3239,6 +3431,7 @@ function hitEnemy(e,damage,effect=0,direction=null){
  if(damage>0)wakeEnemy(e);
  e.hp-=damage;
  if(effect===1)e.burn=2;if(effect===2)e.slow=2;
+ if(effect===4)e.acid=3;
  emitHitVisual(e,damage,direction);
  if(e.hp<=0)killEnemy(e);
 }
@@ -3351,9 +3544,13 @@ function drawCapDrop(c){
  ctx.fill(capDropStar);
  ctx.restore();
 }
+function npcKillCount(state){
+ return Number.isSafeInteger(state.npcKills)&&state.npcKills>=0?state.npcKills:0;
+}
 function killEnemy(e){
  if(e.rewarded)return;e.rewarded=true;
  e.hp=0;
+ if(!S.dead)S.npcKills=Math.min(Number.MAX_SAFE_INTEGER,npcKillCount(S)+1);
  const reward=Math.round((e.boss?180:7+S.level*2)*(1+.25*(S.up.economy||0)));
  S.caps??=[];
  S.caps.push(...makeCapDrops(e,reward,hash(S.map.seed+":"+e.id+":caps")));
@@ -3369,9 +3566,11 @@ function killEnemy(e){
  }
 }
 function die(){
+ if(!S||S.dead)return;
  S.dead=true;meta.best=Math.max(meta.best,S.level);persistMeta();
  try{localStorage.removeItem("prism-save")}catch{}
- show(`<h1>СИГНАЛ ПОТЕРЯН</h1><p>Забег завершён на уровне ${S.level}.</p>
+ show(`<h1 class="death-title">УБИТ</h1><p>Забег завершён на уровне ${S.level}.</p>
+ <p>Убито NPC за забег: <b>${npcKillCount(S).toLocaleString("ru-RU")}</b></p>
  <p>Коллекция: ${meta.collection.length} записей. Постоянный бонус здоровья:
  +${Math.min(10,meta.best*2)}.</p>
  <div class="actions"><button id="again">Новый забег</button><button id="home">В меню</button></div>`);
@@ -3395,14 +3594,14 @@ function attack(e){
    const critical=Math.random()<w.crit;
    projectile(muzzle.x,muzzle.y,a+(Math.random()-.5)*w.spread*2,
     w.speed,w.damage*(critical?w.critPower:1),true,{
-     effect:w.effect,bounce:w.effect===3?1:0,life:w.range/w.speed,
+     ...weaponShotExtra(w),
      launch:{x:e.x,y:e.y}
     });
   }
  }
  emitShotVisual(e,w);
  playWav(ring?"doublebarrel":SHOT_SOUNDS[w.ci],{
-  volume:e.boss?1:.8,
+  volume:e.boss?1:!ring&&w.ci===9?.5:.8,
   rate:ring?.8:(w.bi===0?1.06:w.bi===1?.94:1),
   actor:{x:e.x,y:e.y}
  });
@@ -3441,6 +3640,10 @@ function enemyBehavior(e){
 }
 function enemyFireTiming(e,t,rapid=false){
  const factor=(rapid?1.3:1)*CFG.npcFireMultiplier;
+ if(!e.boss&&e.weapon?.ci===9){
+  // Короткие частые порции огня, а не одиночные медленные пули.
+  return {wind:.12/factor,cooldown:Math.max(.06,1/e.weapon.rate)/factor};
+ }
  return {
   wind:(e.boss?.95:(t.windup??(e.type===2?.95:.55)))/1.8/factor,
   cooldown:(e.boss?1.1:e.weapon?Math.max(.22,1/e.weapon.rate):
@@ -3546,7 +3749,8 @@ function npcSpawnOutsideView(point,hero,width=W,height=H){
   y < -margin || y > height+margin;
 }
 function updateNPCSpawns(elapsed){
- if(!S||paused||S.dead||S.between||!Number.isFinite(elapsed)||elapsed<=0)return;
+ if(!S||paused||S.dead||S.between||S.map.interior||
+    !Number.isFinite(elapsed)||elapsed<=0)return;
  if(!Number.isFinite(S.npcSpawnClock)||S.npcSpawnClock<0)S.npcSpawnClock=0;
  if(!Number.isSafeInteger(S.npcSpawnWave)||S.npcSpawnWave<0)S.npcSpawnWave=0;
  S.npcSpawnClock+=elapsed;
@@ -3595,6 +3799,10 @@ function updateEnemies(dt){
   if(e.hp<=0)continue;
   e.slow=Math.max(0,e.slow-dt);
   if(e.burn>0){e.burn-=dt;e.hp-=4*dt;if(e.hp<=0){killEnemy(e);continue}}
+  if(stepAcid(e,dt)>0){
+   wakeEnemy(e);
+   if(e.hp<=0){killEnemy(e);continue}
+  }
   if(e.spawnWait>0){e.spawnWait=Math.max(0,e.spawnWait-dt);continue}
   if(e.bossKind==="donkey"){updateDonkey(e,dt);continue}
   if(e.summonedBy!==undefined)enemyBehavior(e).alert=CFG.npcMemorySeconds;
@@ -3612,7 +3820,8 @@ function updateEnemies(dt){
    playWav("reload_start",{volume:.6,actor:e});
   }
   const armed=w.ammo>0||w.reserve>0;
-  const combatRange=e.boss?9:armed?Math.min(t.range*1.25,w.range):.6;
+  const combatRange=e.boss?(w.ci===9?Math.min(9,w.range):9):
+   armed?Math.min(t.range*1.25,w.range):.6;
   const behavior=enemyBehavior(e);
   const radius=enemyDetectionRadius(behavior,getCombatVisuals().time);
   const clear=(d<=radius||behavior.alert>0)&&lineClear(e,p);
@@ -3689,7 +3898,7 @@ function enemyBulletContact(e,b,ox,oy){
   y:(((x-e.x)+(y-e.y))*16-19)/scale
  });
  const start=local(ox,oy),end=local(b.x,b.y);
- const padding=1.5/scale;
+ const padding=(b.shotKind==="flame"?5:b.shotKind==="acid"?3:1.5)/scale;
  // Быстрая проверка до построения подробного силуэта.
  if(Math.max(start.x,end.x)<-70-padding||
     Math.min(start.x,end.x)>70+padding||
@@ -3742,7 +3951,9 @@ function updateBullets(dt){
    const ox=b.x,oy=b.y;
    const nx=ox+(leading?leadX:b.vx*flightDt/steps);
    const ny=oy+(leading?leadY:b.vy*flightDt/steps);
-   if(b.donkeyPellet?!valid(nx,ny,clamp(b.pelletRadius||.12,.12,.18)):wall(nx,ny)){
+   const shotRadius=b.shotKind==="flame"?.08:b.shotKind==="acid"?.06:0;
+   if(b.donkeyPellet?!valid(nx,ny,clamp(b.pelletRadius||.12,.12,.18)):
+      shotRadius>0?!valid(nx,ny,shotRadius):wall(nx,ny)){
     if(b.bounce>0&&!leading){
      b.bounce--;
      if(wall(nx,oy))b.vx=-b.vx;else b.vy=-b.vy;
@@ -3752,7 +3963,7 @@ function updateBullets(dt){
    b.x=nx;b.y=ny;
    if(b.enemy){
     if(S.map.shops.some(s=>dist(s,b)<2.2)){b.life=0;continue}
-    const radius=b.donkeyPellet?clamp(b.pelletRadius||.12,.12,.18):0;
+    const radius=b.donkeyPellet?clamp(b.pelletRadius||.12,.12,.18):shotRadius;
     if(dist(b,S.p)<.25+radius){damagePlayer(b.damage,{x:b.vx,y:b.vy},b.effect);b.life=0}
    }else{
     let target=null,first=Infinity;
@@ -3771,7 +3982,7 @@ function updateBullets(dt){
    }
    if(b.life<=0)continue;
    const obj=S.props.find(o=>o.hp>0&&dist(o,b)<
-    .3+(b.donkeyPellet?clamp(b.pelletRadius||.12,.12,.18):0));
+    .3+(b.donkeyPellet?clamp(b.pelletRadius||.12,.12,.18):shotRadius));
    if(obj){
     obj.hp-=b.damage;b.life=0;
     if(obj.hp<=0){
@@ -3797,6 +4008,7 @@ function updateBullets(dt){
     }
    }
   }
+  if(b.life<=0&&b.shotKind)emitSpecialImpact(b);
   // Попадание/стена обнуляют life раньше: для них падение не создаётся.
   if(b.life>0){
    b.life=Math.max(0,b.life-flightDt);
@@ -3817,6 +4029,7 @@ function stepMedkitHealing(p,elapsed){
 }
 function update(dt,realDt=dt){
  if(!S||paused||S.dead)return;
+ S.doorWait=Math.max(0,(S.doorWait||0)-dt);
  updateCombatVisuals(dt);
  const p=S.p;
  const burning=Math.min(dt,Math.max(0,p.burn||0));
@@ -3827,6 +4040,7 @@ function update(dt,realDt=dt){
   p.hp=Math.max(0,p.hp-4*burning);
   if(p.hp<=0){die();return}
  }
+ if(stepAcid(p,dt)>0&&p.hp<=0){die();return}
  p.inv=Math.max(0,p.inv-dt);p.shot=Math.max(0,p.shot-dt);
  if (p.reload > 0) {
   p.reload = Math.max(0, p.reload - dt);
@@ -3871,10 +4085,403 @@ function update(dt,realDt=dt){
  S.fx=S.fx.filter(f=>f.life>0);
  reveal();saveTimer+=dt;if(saveTimer>CFG.saveSeconds){saveTimer=0;save()}
 }
+const HOUSE_SCENE_FIELDS=Object.freeze([
+ "map","enemies","props","loot","medkits","caps","bullets","fx",
+ "npcSpawnClock","npcSpawnWave"
+]);
+function houseDoor(b){
+ return {x:b.x,y:b.y+b.h/2+.55};
+}
+function houseMapValidPoint(map,p,r=.2){
+ if(!p||!Number.isFinite(p.x)||!Number.isFinite(p.y))return false;
+ return [[-r,-r],[r,-r],[-r,r],[r,r]].every(([dx,dy])=>{
+  const x=Math.floor(p.x+dx),y=Math.floor(p.y+dy);
+  return x>=0&&y>=0&&x<map.n&&y<map.n&&map.tiles[y*map.n+x]===0;
+ });
+}
+function nearbyHouse(){
+ if(!S||S.map.interior)return null;
+ let result=null,best=1.15;
+ for(const [index,b] of (S.map.buildings||[]).entries()){
+  const door=houseDoor(b),distance=dist(S.p,door);
+  if(distance<=best&&S.p.y>=b.y+b.h/2+.2&&
+     valid(door.x,door.y)&&lineClear(S.p,door)){
+   result={index,building:b,door};
+   best=distance;
+  }
+ }
+ return result;
+}
+function makeHouseScene(b,index,state=S){
+ const seed=hash(state.map.seed+":house:v1:"+index+":"+b.x+":"+b.y);
+ const r=rng(seed);
+ // Прямоугольник сохраняет пропорции внешнего здания.
+ const width=clamp(Math.round(b.w*3),6,15);
+ const height=clamp(Math.round(b.h*3),6,15);
+ const n=Math.max(width,height)+2;
+ const start={x:Math.floor((width+1)/2)+.5,y:height+.5};
+ const map={
+  seed,n,interior:true,desert:true,width,height,
+  tiles:Array(n*n).fill(1),seen:Array(n*n).fill(true),
+  terrain:Array(n*n).fill(0),shops:[],buildings:[],decor:[],landmarks:[],
+  furniture:[],start,exit:{...start},layout:{name:"Внутри дома"}
+ };
+ for(let y=1;y<=height;y++)for(let x=1;x<=width;x++){
+  map.tiles[y*n+x]=0;
+  map.terrain[y*n+x]=2;
+ }
+ const scene={
+  map,enemies:[],props:[],loot:[],medkits:[],caps:[],bullets:[],fx:[],
+  npcSpawnClock:0,npcSpawnWave:0
+ };
+ const cells=[];
+ for(let y=1;y<=height;y++)for(let x=1;x<=width;x++){
+  const p={x:x+.5,y:y+.5};
+  if(dist(p,start)>2)cells.push(p);
+ }
+ const edges=shuffle(r,cells.filter(p=>
+  p.x===1.5||p.y===1.5||p.x===width+.5
+ ));
+ const furnitureKinds=["bed","cabinet","table","chair"];
+ for(const kind of furnitureKinds){
+  const point=edges.pop();
+  if(!point)break;
+  const k=Math.floor(point.y)*n+Math.floor(point.x);
+  map.tiles[k]=2;
+  // Мебель не должна отрезать выход или другую часть комнаты.
+  const reachable=distances(map,Math.floor(start.x),Math.floor(start.y));
+  if(map.tiles.some((tile,i)=>tile===0&&reachable[i]<0)){
+   map.tiles[k]=0;
+   continue;
+  }
+  map.furniture.push({...point,kind});
+ }
+ const spots=shuffle(r,cells.filter(p=>
+  map.tiles[Math.floor(p.y)*n+Math.floor(p.x)]===0
+ ));
+ const npcCount=Math.floor(r()*4);
+ const weaponCount=Math.floor(r()*6);
+ const medkitCount=r()<.5?0:1+Math.floor(r()*2);
+ const crateCount=2+Math.floor(r()*4);
+ for(let i=0;i<npcCount;i++){
+  const at=spots.findIndex(p=>dist(p,start)>3);
+  if(at<0)throw Error("Нет места для NPC в доме");
+  const point=spots.splice(at,1)[0];
+  const type=pick(r,levelEnemyPool(r)),t=ENEMY_TYPES[type];
+  const hp=t.hp*(1+.07*(state.level-1));
+  scene.enemies.push({
+   id:0,...point,type,hp,max:hp,cd:1.2+r(),wind:0,
+   burn:0,slow:0,phase:0,patrol:r()<.5,spawnWait:1,
+   weapon:weapon(Math.floor(r()*2**32),state.level),reload:0
+  });
+ }
+ for(let i=0;i<weaponCount;i++){
+  const point=spots.pop();
+  if(!point)throw Error("Нет места для оружия в доме");
+  scene.loot.push({...point,w:weapon(Math.floor(r()*2**32),state.level)});
+ }
+ for(let i=0;i<medkitCount;i++){
+  const point=spots.pop();
+  if(point)scene.medkits.push(point);
+ }
+ for(let i=0;i<crateCount;i++){
+  const point=spots.pop();
+  if(point)scene.props.push({...point,hp:25,kind:"crate"});
+ }
+ return scene;
+}
+function captureHouseScene(state){
+ const scene={};
+ for(const key of HOUSE_SCENE_FIELDS)scene[key]=state[key];
+ // Не сохраняем мёртвого NPC вместе с уже выпавшим из него оружием.
+ scene.enemies=state.enemies.filter(e=>e.hp>0);
+ return scene;
+}
+function installHouseScene(state,scene){
+ for(const key of HOUSE_SCENE_FIELDS)state[key]=scene[key];
+}
+function normalizeHouseWorld(state){
+ normalizeHouseState(state);
+ return state.entitySerial;
+}
+const SCENE_FIELDS=[
+ "map","enemies","props","loot","medkits","caps","bullets","fx",
+ "npcSpawnClock","npcSpawnWave"
+];
+function captureScene(state){
+ const scene={};
+ for(const key of SCENE_FIELDS)scene[key]=state[key];
+ return scene;
+}
+function applyScene(state,scene){
+ for(const key of SCENE_FIELDS)state[key]=scene[key];
+}
+function mapPositionClear(map,point,radius=.2){
+ if(!point||!Number.isFinite(point.x)||!Number.isFinite(point.y))return false;
+ for(const dx of [-radius,radius])for(const dy of [-radius,radius]){
+  const x=Math.floor(point.x+dx),y=Math.floor(point.y+dy);
+  if(x<0||y<0||x>=map.n||y>=map.n||map.tiles[y*map.n+x]!==0)return false;
+ }
+ return true;
+}
+function buildingDoor(b){
+ return {x:b.x,y:b.y+b.h/2+.5};
+}
+function nearbyHouseDoor(){
+ if(!S||S.between)return null;
+ const house=nearbyHouse();
+ return house?{
+  kind:"houseEnter",index:house.index,obj:house.building,text:"E — войти в дом"
+ }:null;
+}
+function canReachHouseExit(state=S,clear=lineClear){
+ return Boolean(state?.map?.interior&&state.map.exit&&
+  Number.isFinite(state.p?.x)&&Number.isFinite(state.p?.y)&&
+  dist(state.p,state.map.exit)<=1.15&&clear(state.p,state.map.exit));
+}
+function createHouseScene(b,seed,level,nextId=()=>++serial){
+ if(!Number.isFinite(b.w)||!Number.isFinite(b.h)||b.w<=0||b.h<=0){
+  throw Error("Некорректные размеры дома");
+ }
+ const r=rng(seed);
+ const width=clamp(Math.round(b.w*3),6,18);
+ const height=clamp(Math.round(b.h*3),6,18);
+ const n=Math.max(width,height)+2,doorX=Math.floor(width/2)+.5;
+ const start={x:doorX,y:height+.5};
+ const map={
+  seed,n,tiles:Array(n*n).fill(1),seen:Array(n*n).fill(true),
+  terrain:Array(n*n).fill(1),shops:[],buildings:[],decor:[],landmarks:[],
+  desert:true,start,exit:{...start},
+  layout:{name:"Внутри дома"},
+  interior:{width,height},furniture:[]
+ };
+ for(let y=1;y<=height;y++)for(let x=1;x<=width;x++)map.tiles[y*n+x]=0;
+ const npcCount=Math.floor(r()*4),weaponCount=Math.floor(r()*6);
+ const medkitCount=r()<.5?0:1+Math.floor(r()*2);
+ const crateCount=2+Math.floor(r()*4);
+ const furnitureSpots=[];
+ for(let y=1;y<=height;y++)for(let x=1;x<=width;x++){
+  const point={x:x+.5,y:y+.5};
+  if((x===1||x===width||y===1)&&x!==Math.floor(doorX)&&dist(point,start)>2){
+   furnitureSpots.push(point);
+  }
+ }
+ const furnitureKinds=shuffle(r,["bed","table","cabinet","chair"]);
+ const furnitureCount=3+Math.floor(r()*4);
+ for(const point of shuffle(r,furnitureSpots)){
+  if(map.furniture.length>=furnitureCount)break;
+  const cell=Math.floor(point.y)*n+Math.floor(point.x);
+  map.tiles[cell]=2;
+  const reachable=distances(map,Math.floor(start.x),Math.floor(start.y));
+  if(map.tiles.some((tile,i)=>tile===0&&reachable[i]<0)){
+   map.tiles[cell]=0;
+   continue;
+  }
+  map.furniture.push({
+   ...point,kind:furnitureKinds[map.furniture.length%furnitureKinds.length]
+  });
+ }
+ const floors=[];
+ for(let y=1;y<=height;y++)for(let x=1;x<=width;x++){
+  const point={x:x+.5,y:y+.5};
+  if(map.tiles[y*n+x]===0&&dist(point,start)>1.8&&x!==Math.floor(doorX)){
+   floors.push(point);
+  }
+ }
+ const spots=shuffle(r,floors);
+ const scene={
+  map,enemies:[],props:[],loot:[],medkits:[],caps:[],bullets:[],fx:[],
+  npcSpawnClock:0,npcSpawnWave:0
+ };
+ for(let i=0;i<npcCount;i++){
+  const index=spots.findIndex(p=>dist(p,start)>3);
+  if(index<0)throw Error("Нет места для NPC внутри дома");
+  const point=spots.splice(index,1)[0];
+  const type=pick(r,levelEnemyPool(r)),t=ENEMY_TYPES[type];
+  const hp=Math.round(t.hp*(1+.07*(level-1)));
+  scene.enemies.push({
+   id:nextId(),...point,type,hp,max:hp,cd:1.5+r(),wind:0,
+   burn:0,slow:0,phase:0,patrol:r()<.4,spawnWait:1,
+   reload:0,weapon:weapon(Math.floor(r()*2**32),level)
+  });
+ }
+ const take=()=>{
+  if(!spots.length)throw Error("Недостаточно места для содержимого дома");
+  return spots.pop();
+ };
+ for(let i=0;i<weaponCount;i++){
+  scene.loot.push({...take(),w:weapon(Math.floor(r()*2**32),level)});
+ }
+ for(let i=0;i<medkitCount;i++)scene.medkits.push(take());
+ for(let i=0;i<crateCount;i++)scene.props.push({...take(),hp:25,kind:"crate"});
+ if(!validateMap(map))throw Error("Недостижимая дверь дома");
+ return scene;
+}
+function finishHouseTransition(point=null){
+ if(point){S.p.x=point.x;S.p.y=point.y}
+ cancelKnifeAttack();
+ stopGameSounds();
+ combatVisuals=null;
+ pathTimer=0;field=[];
+ shake=0;shotShake=0;capPickupSoundWait=0;
+ footstepMap=null;
+ keys={};mouse.down=false;
+ S.p.reload=0;
+ S.p.shot=Math.max(S.p.shot||0,.2);
+ S.p.sprinting=false;
+ for(const e of S.enemies){
+  enemyBehaviorStates.delete(e);
+  enemyPatrolStates.delete(e);
+  npcHitCache.delete(e);
+ }
+ S.doorWait=.4;
+ camera.x=(S.p.x-S.p.y)*32;
+ camera.y=(S.p.x+S.p.y)*16;
+ lastTime=performance.now();
+ reveal();
+ save();
+}
+function enterHouse(index){
+ if(!S||paused||S.dead||S.between||S.map.interior||S.p.heal>0||S.doorWait>0)return;
+ const entrance=nearbyHouseDoor();
+ if(!entrance||entrance.index!==index)return;
+ if(!Array.isArray(S.houseRooms))S.houseRooms=[];
+ let room=S.houseRooms[index];
+ if(!room){
+  try{
+   room=createHouseScene(entrance.obj,
+    hash(S.map.seed+":house:v1:"+index),S.level);
+  }catch(error){
+   console.warn("Интерьер:",error);
+   toast("Не удалось подготовить интерьер");
+   return;
+  }
+ }
+ if(!validateMap(room.map)||!mapPositionClear(room.map,room.map.start)){
+  toast("Вход в интерьер недоступен");
+  return;
+ }
+ S.houseReturn={x:S.p.x,y:S.p.y};
+ S.outdoorScene=captureScene(S);
+ S.houseIndex=index;
+ // Активная сцена хранится только в S: нет дубликатов и циклических ссылок.
+ S.houseRooms[index]=null;
+ applyScene(S,room);
+ S.p.x=S.map.start.x;S.p.y=S.map.start.y;
+ finishHouseTransition();
+ toast("Внутри дома · E у двери — выйти");
+}
+function leaveHouse(){
+ if(!S||paused||S.dead||S.between||S.p.heal>0||!canReachHouseExit())return;
+ if(S.doorWait>0){
+  toast("Дверь открывается — через мгновение нажмите E ещё раз");
+  return;
+ }
+ const outside=S.outdoorScene,index=S.houseIndex;
+ if(!outside||!Number.isInteger(index)||index<0||
+    !mapPositionClear(outside.map,S.houseReturn)){
+  toast("Не найдена безопасная точка выхода");
+  return;
+ }
+ const point=S.houseReturn;
+ S.houseRooms[index]=captureScene(S);
+ applyScene(S,outside);
+ S.outdoorScene=null;S.houseIndex=null;S.houseReturn=null;
+ S.p.x=point.x;S.p.y=point.y;
+ finishHouseTransition();
+ toast("Вы вышли из дома");
+}
+function normalizeHouseState(state){
+ // Поддержка сохранений первой реализации без повторной генерации лута.
+ const legacy=state.houseWorld;
+ if(legacy){
+  const rooms=legacy.rooms;
+  if(!rooms||typeof rooms!=="object"||Array.isArray(rooms)){
+   throw Error("Список старых интерьеров");
+  }
+  const exterior=state.outdoorScene?.map||legacy.outside?.map||
+   (!state.map.interior?state.map:null);
+  if(state.houseRooms===undefined)state.houseRooms=[];
+  if(!Array.isArray(state.houseRooms))throw Error("Список интерьеров");
+  for(const [key,room] of Object.entries(rooms)){
+   if(!/^(0|[1-9]\d*)$/.test(key)||!exterior?.buildings?.[Number(key)]||
+      !room?.map?.interior)throw Error("Старый интерьер");
+   if(state.houseRooms[Number(key)]==null)state.houseRooms[Number(key)]=room;
+  }
+  if(state.map.interior&&!state.outdoorScene&&legacy.outside){
+   state.outdoorScene=legacy.outside;
+   state.houseIndex=legacy.active;
+   state.houseReturn=legacy.returnPoint;
+  }
+ }
+ if(state.houseRooms===undefined)state.houseRooms=[];
+ if(!Array.isArray(state.houseRooms))throw Error("Список интерьеров");
+ const inside=Boolean(state.map.interior);
+ const outside=inside?state.outdoorScene:state;
+ if(!outside||!validateMap(outside.map)||outside.map.interior){
+  throw Error("Уличная карта");
+ }
+ const buildings=outside.map.buildings||[];
+ if(state.houseRooms.length>buildings.length)throw Error("Индексы домов");
+ if(inside){
+  if(!Number.isInteger(state.houseIndex)||state.houseIndex<0||
+     !buildings[state.houseIndex]||state.houseRooms[state.houseIndex]!=null||
+     !mapPositionClear(outside.map,state.houseReturn)){
+   throw Error("Обратный переход из дома");
+  }
+ }else{
+  state.outdoorScene=null;state.houseIndex=null;state.houseReturn=null;
+ }
+ const scenes=[state,...state.houseRooms.filter(Boolean)];
+ if(inside)scenes.push(outside);
+ let largestId=Number.isSafeInteger(state.entitySerial)&&state.entitySerial>=0
+  ?state.entitySerial:0;
+ for(const scene of scenes){
+  if(!validateMap(scene.map))throw Error("Карта сцены");
+  if(scene.map.interior===true){
+   scene.map.interior={width:scene.map.width,height:scene.map.height};
+  }
+  if(scene.map.interior){
+   const {width,height}=scene.map.interior;
+   if(!Number.isInteger(width)||!Number.isInteger(height)||
+      width<6||height<6||width>18||height>18||
+      scene.map.n!==Math.max(width,height)+2||
+      !Array.isArray(scene.map.furniture)){
+    throw Error("Геометрия интерьера");
+   }
+  }
+  for(const key of ["enemies","props","loot","bullets","fx"]){
+   if(!Array.isArray(scene[key]))throw Error("Содержимое сцены: "+key);
+  }
+  normalizeCapDrops(scene);
+  scene.medkits=Array.isArray(scene.medkits)
+   ?scene.medkits.filter(p=>mapPositionClear(scene.map,p,0)):[];
+  scene.npcSpawnClock=Number.isFinite(scene.npcSpawnClock)?Math.max(0,scene.npcSpawnClock):0;
+  scene.npcSpawnWave=Number.isSafeInteger(scene.npcSpawnWave)?Math.max(0,scene.npcSpawnWave):0;
+  for(const e of scene.enemies){
+   if(!Number.isSafeInteger(e.id)||e.id<0||!ENEMY_TYPES[e.type]){
+    throw Error("NPC сцены");
+   }
+   largestId=Math.max(largestId,e.id,
+    Number.isSafeInteger(e.summonedBy)?e.summonedBy:0);
+   normalizeDonkey(e,state.level);
+   equipEnemy(e,state);
+  }
+ }
+ serial=Math.max(serial,largestId);
+ state.entitySerial=serial;
+ state.doorWait=Number.isFinite(state.doorWait)?clamp(state.doorWait,0,.6):0;
+ delete state.houseWorld;
+}
 function nearest(){
  if(!S||S.dead)return null;
  const p=S.p;
  if(p.heal>0)return {kind:"healing",text:"Лечусь"};
+ if(canReachHouseExit()){
+  return {kind:"houseExit",text:S.doorWait>0?"Дверь открывается…":"E — выйти из дома"};
+ }
+ const house=nearbyHouse();
+ if(house)return {kind:"house",obj:house.index,text:"E — войти в дом"};
  if(p.hp<p.max){
   let medkit=null,best=1.1;
   for(const item of S.medkits){
@@ -3889,7 +4496,7 @@ function nearest(){
   };
  }
  const shop=S.map.shops.find(o=>dist(o,p)<1.5);if(shop)return {kind:"shop",obj:shop,text:"E — "+(shop.kind==="weapons"?"оружейный магазин":"улучшения героя")};
- if(dist(p,S.map.exit)<1.4){
+ if(!S.map.interior&&dist(p,S.map.exit)<1.4){
   const boss=S.enemies.find(e=>e.boss&&e.hp>0);
   return {kind:"exit",text:boss
    ?boss.bossKind==="donkey"?"Маяк заглушён: победите Большого осла":"Портал закрыт: победите Дискоядро"
@@ -3902,6 +4509,8 @@ function nearest(){
 function interact(){
  if(!S||paused||S.dead||S.p.heal>0)return;
  const n=nearest();if(!n)return;
+ if(n.kind==="house"){enterHouse(n.obj);return}
+ if(n.kind==="houseExit"){leaveHouse();return}
  if(n.kind==="medkit"){
   const index=S.medkits.indexOf(n.obj);
   if(index<0||S.p.hp>=S.p.max)return;
@@ -3912,7 +4521,7 @@ function interact(){
  }
  if(n.kind==="loot")lootWindow(n.obj);
  if(n.kind==="shop")shopWindow(n.obj);
- if(n.kind==="exit"&&!S.enemies.some(e=>e.boss)){
+ if(n.kind==="exit"&&!S.map.interior&&!S.enemies.some(e=>e.boss)){
   S.between=true;
   meta.best=Math.max(meta.best,S.level);persistMeta();save();betweenWindow();
  }
@@ -4781,9 +5390,13 @@ function draw(){
  }
  for(const b of S.bullets){
   if(b.donkeyPellet){drawDonkeyPellet(b);continue}
+  if(drawSpecialProjectile(b))continue;
   const p=project(b.x,b.y,15);
   ellipse(p.x,p.y,b.enemy?4:3,b.enemy?4:3,b.enemy?"#cf234e":"#fff");
   ctx.strokeStyle=b.enemy?"#fff":"#178dab";ctx.lineWidth=1;ctx.stroke();
+ }
+ for(const drop of getCombatVisuals().bulletDrops){
+  if(drop.vaporDuration>0)drawBulletDrop(drop);
  }
  ctx.globalAlpha=settings.flash;
  for(const f of S.fx){const p=project(f.x,f.y,15);ctx.fillStyle=f.color;ctx.fillRect(p.x-2,p.y-2,4,4)}
@@ -5103,7 +5716,7 @@ function testArmorAndNPCWeapons(){
   if(equipEnemy(a,world)!==w||w.ammo!==ammo-1)stable=false;
  }
  check("Вооружение NPC повторяется по seed и сохраняет расход патронов",stable);
- check("NPC получают все восемь классов оружия",classes.size===CLASSES.length);
+ check("NPC получают все доступные классы оружия",classes.size===CLASSES.length);
  check("У части обычных NPC есть эпическое или особое оружие",strong>0&&strong<300);
  check("Босс получает оружие не ниже эпического",
   equipEnemy({id:999,boss:true},world).rare>=2);
@@ -5144,6 +5757,31 @@ function testBulletDrops(){
  const idle=fresh(),before=JSON.stringify(idle);
  for(const dt of [0,-1,NaN,Infinity])stepBulletDrop(idle,dt);
  check("Пауза и некорректное время не меняют эффект",JSON.stringify(idle)===before);
+ for(const [shotKind,vaporDuration] of [["laser",.45],["flame",.6],["acid",.55]]){
+  const freshVapor=()=>({
+   x:3,y:4,z:19,age:0,enemy:false,shotKind,vaporDuration,vx:7,vy:2
+  });
+  const vapor=freshVapor();
+  const alive=stepBulletDrop(vapor,vaporDuration/2);
+  check(`${shotKind}: пар поднимается без продолжения полёта и урона`,
+   alive&&Math.abs(vapor.z-26)<1e-9&&vapor.x===3&&vapor.y===4&&
+   !Object.hasOwn(vapor,"damage")&&!Object.hasOwn(vapor,"effect"));
+  check(`${shotKind}: пар удаляется по завершении`,
+   !stepBulletDrop(vapor,vaporDuration)&&vapor.age===vaporDuration);
+  const stopped=freshVapor(),snapshot=JSON.stringify(stopped);
+  for(const dt of [0,-1,NaN,Infinity])stepBulletDrop(stopped,dt);
+  check(`${shotKind}: некорректное время не меняет пар`,
+   JSON.stringify(stopped)===snapshot);
+  for(const fps of [30,60,144]){
+   const timed=freshVapor();
+   let active=true;
+   for(let frame=0;frame<Math.ceil((vaporDuration+.1)*fps);frame++){
+    active=stepBulletDrop(timed,1/fps);
+   }
+   check(`${shotKind}: завершение при ${fps} FPS`,
+    !active&&timed.age===vaporDuration&&timed.x===3&&timed.y===4);
+  }
+ }
  return results;
 }
 function testInventoryTransfers(){
@@ -5307,7 +5945,112 @@ function testDonkeyBoss(){
   enemyScale({boss:true})===1.65&&enemyScale({boss:false})===1);
  return results;
 }
+function testHouseInteriors(){
+ const results=[];
+ const check=(name,ok)=>results.push({name,ok:Boolean(ok)});
+ let counts=true,reachable=true,stable=true,shape=true;
+ const npcCounts=new Set(),weaponCounts=new Set();
+ for(let seed=1;seed<=100;seed++){
+  const b={w:2+seed%4,h:2+seed%3};
+  let id=0;
+  const scene=createHouseScene(b,seed,3,()=>++id);
+  const m=scene.map;
+  npcCounts.add(scene.enemies.length);
+  weaponCounts.add(scene.loot.length);
+  if(scene.enemies.length>3||scene.loot.length>5||scene.medkits.length>2||
+     scene.props.length<2||m.furniture.length<3)counts=false;
+  if(m.interior.width!==b.w*3||m.interior.height!==b.h*3)shape=false;
+  const d=distances(m,Math.floor(m.start.x),Math.floor(m.start.y));
+  if(!validateMap(m)||m.tiles.some((tile,i)=>tile===0&&d[i]<0)||
+     [...scene.enemies,...scene.loot,...scene.medkits,...scene.props].some(p=>
+      !mapPositionClear(m,p)||dist(p,m.start)<=1.8))reachable=false;
+  id=0;
+  if(JSON.stringify(scene)!==JSON.stringify(createHouseScene(b,seed,3,()=>++id))){
+   stable=false;
+  }
+ }
+ check("Лимиты NPC, оружия, аптечек и наличие мебели/ящиков",counts);
+ check("На 100 seeds встречаются пустые и наполненные дома",
+  npcCounts.has(0)&&npcCounts.has(3)&&weaponCounts.has(0)&&weaponCounts.has(5));
+ check("Пропорции помещения соответствуют дому",shape);
+ check("Дверь и свободные клетки достижимы, вход не занят",reachable);
+ check("Повторяемость интерьера по seed",stable);
+ let id=0;
+ const room=createHouseScene({w:3,h:2},123,1,()=>++id);
+ room.loot=[];room.medkits=[];room.enemies=[];
+ const street=createHouseScene({w:2,h:2},124,1,()=>++id);
+ const state={...street,p:{hp:70},money:42,houseRooms:[]};
+ const outside=captureScene(state);
+ applyScene(state,room);
+ state.houseRooms[0]=captureScene(state);
+ applyScene(state,outside);
+ const copy=JSON.parse(JSON.stringify(state));
+ applyScene(copy,copy.houseRooms[0]);
+ copy.houseRooms[0]=null;
+ check("После JSON и повторного входа убранный лут/NPC не возвращаются",
+  copy.loot.length===0&&copy.medkits.length===0&&copy.enemies.length===0);
+ check("Переключение сцены сохраняет деньги и здоровье",
+  copy.money===42&&copy.p.hp===70);
+ return results;
+}
+function testSpecialWeapons(){
+ const results=[];
+ const check=(name,ok)=>results.push({name,ok:Boolean(ok)});
+ const families=new Map([[8,new Set()],[9,new Set()],[10,new Set()]]);
+ let validGuns=true,effects=true,saved=true;
+ for(let seed=0;seed<2000;seed++){
+  const w=weapon(seed,1+seed%10);
+  if(w.ci<8)continue;
+  families.get(w.ci)?.add([w.mi,w.bi,w.gi].join(":"));
+  const extra=weaponShotExtra(w);
+  if(!(w.damage>0&&w.rate>0&&w.mag>0&&w.reload>0&&
+       extra.life>0&&SHOT_SOUNDS[w.ci]&&weaponShotKind(w)))validGuns=false;
+  if(w.ci===9&&w.effect!==1||w.ci===10&&w.effect!==4)effects=false;
+  const copy=JSON.parse(JSON.stringify(w));
+  if(JSON.stringify(w)!==JSON.stringify(copy)||
+     weaponPreview(w)!==weaponPreview(copy)||
+     JSON.stringify(extra)!==JSON.stringify(weaponShotExtra(copy)))saved=false;
+ }
+ check("Три новых семейства с разными модификациями",
+  [...families.values()].every(set=>set.size>=10));
+ check("Параметры и звуки новых классов определены",validGuns);
+ check("Огнемёт поджигает, кислотомёт вызывает коррозию",effects);
+ check("Оружие, внешний вид и выстрел переживают JSON",saved);
+ for(const fps of [10,30,60,144]){
+  const actor={hp:100,acid:3};
+  for(let i=0;i<fps*4;i++)stepAcid(actor,1/fps);
+  check(`Коррозия: 18 HP суммарно при ${fps} FPS`,
+   Math.abs(actor.hp-82)<1e-7&&actor.acid===0);
+ }
+ const old={hp:100};
+ stepAcid(old,1);
+ check("Старый NPC без кислотного эффекта не получает урон",old.hp===100&&old.acid===0);
+ const lethal={hp:2,acid:3};
+ stepAcid(lethal,1);
+ check("Коррозия не опускает здоровье ниже нуля",lethal.hp===0);
+ const idle={hp:100,acid:3},before=JSON.stringify(idle);
+ for(const dt of [0,-1,NaN,Infinity])stepAcid(idle,dt);
+ check("Пауза и некорректное время не меняют коррозию",JSON.stringify(idle)===before);
+ let soundOK=true;
+ for(const name of ["laser","flamethrower","acid"]){
+  for(let variant=0;variant<3;variant++){
+   const wav=synthesizeSound(name,variant);
+   const view=new DataView(wav);
+   let audible=false;
+   for(let i=44;i<wav.byteLength;i+=2){
+    if(view.getInt16(i,true)!==0){audible=true;break}
+   }
+   if(wav.byteLength<=44||view.getUint32(40,true)!==wav.byteLength-44||!audible){
+    soundOK=false;
+   }
+  }
+ }
+ check("Девять WAV-вариантов содержат звук и корректную длину",soundOK);
+ return results;
+}
 function runTests(){
+ const specialChecks=testSpecialWeapons();
+ const houseChecks=testHouseInteriors();
  const donkeyChecks=testDonkeyBoss();
  const capChecks=testCapDrops();
  const knifeChecks=testKnife();
@@ -5453,6 +6196,10 @@ function runTests(){
  <p>Классы оружия: ${gunClasses.size}/${CLASSES.length} · отделки: ${gunFinishes.size}/6 · ${gunClasses.size===CLASSES.length&&gunFinishes.size===6?"OK":"ОШИБКА"}</p>
  <p>Монотонный рост цены кейса: ${limits?"OK":"ОШИБКА"}</p>
  <p>JSON-сериализация текущего состояния: ${roundtrip?"OK":"ОШИБКА"}</p>
+ <h3>Лазеры, огнемёты и кислота</h3>
+ ${specialChecks.map(t=>`<p class="small">${t.ok?"OK":"ОШИБКА"} — ${t.name}</p>`).join("")}
+ <h3>Интерьеры домов</h3>
+ ${houseChecks.map(t=>`<p class="small">${t.ok?"OK":"ОШИБКА"} — ${t.name}</p>`).join("")}
  <h3>Большой осёл</h3>
  ${donkeyChecks.map(t=>`<p class="small">${t.ok?"OK":"ОШИБКА"} — ${t.name}</p>`).join("")}
  <h3>Противники</h3>
@@ -5490,6 +6237,7 @@ function loadRun(){
   stopGameSounds();
   S=JSON.parse(raw);
   if(!S.map||!S.p||!validateMap(S.map))throw Error("Формат");
+  S.npcKills=npcKillCount(S);
   normalizeStamina(S);
   normalizeArmor(S);
   normalizeCapDrops(S);
@@ -5507,7 +6255,8 @@ function loadRun(){
   ):[];
   S.p.heal=Number.isFinite(S.p.heal)
    ?clamp(S.p.heal,0,CFG.medkitSeconds):0;
-  serial=Math.max(0,...S.enemies.map(e=>e.id));pathTimer=0;
+  serial=normalizeHouseWorld(S);pathTimer=0;
+  combatVisuals=null;
   if(S.pending)caseWindow();else if(S.between)betweenWindow();else closeModal();
  }catch{toast("Не удалось загрузить сохранение")}
 }
@@ -5726,7 +6475,7 @@ input {
 
   // ---------------- Генерация открытой местности ----------------
 
-  CFG.buildingSignFraction = .20;
+  CFG.buildingSignFraction = 0;
 
   const BUILDING_STYLES = [
     {id:"adobe",name:"Глинобитный дом",roof:"flat",rise:0,height:39,
@@ -6215,14 +6964,11 @@ input {
       }
     }
 
-    if(b.arch?.sign&&style.sign&&b.w>=3){
-      const signPos=point(.5,1,b.height-5);
-      ctx.fillStyle="#ccb485";
-      ctx.fillRect(signPos.x-28,signPos.y-14,56,16);
-      ctx.strokeStyle="#493a29";
-      ctx.lineWidth=2;
-      ctx.strokeRect(signPos.x-28,signPos.y-14,56,16);
-      text(style.sign,signPos.x,signPos.y-2,10,"#48372a");
+    const entrance=houseDoor(b);
+    if(dist(S.p,entrance)<=1.15&&S.p.y>=b.y+b.h/2+.2&&
+       valid(entrance.x,entrance.y)&&lineClear(S.p,entrance)){
+      const doorPoint=point(.5,1,doorHeight+7);
+      text("E — ВОЙТИ",doorPoint.x,doorPoint.y,11,"#fff0cf");
     }
 
     const top=roofPoint(.5,.5);
@@ -6286,6 +7032,32 @@ input {
     }
 
     ctx.restore();
+  }
+
+  function drawHouseFurniture(o){
+    const p=project(o.x,o.y);
+    if(o.kind==="bed"){
+      block(o.x,o.y,9,"#70634d","#493e30",.9);
+      diamond(o.x,o.y,"#73816b",.8,10);
+      diamond(o.x-.18,o.y-.18,"#ddd2b5",.3,12);
+    }else if(o.kind==="cabinet"){
+      block(o.x,o.y,37,"#886744","#59432d",.8);
+      strokeLine(p.x,p.y-33,p.x,p.y-5,"#3c3025",2);
+      ellipse(p.x-4,p.y-17,1.5,1.5,"#d9b86c");
+      ellipse(p.x+4,p.y-17,1.5,1.5,"#d9b86c");
+    }else if(o.kind==="table"){
+      for(const [dx,dy] of [[-.3,-.3],[.3,-.3],[-.3,.3],[.3,.3]]){
+        const leg=project(o.x+dx,o.y+dy);
+        strokeLine(leg.x,leg.y,leg.x,leg.y-19,"#51402d",3);
+      }
+      diamond(o.x,o.y,"#b18b58",.95,20);
+      diamond(o.x,o.y,"#d9ceb2",.3,21);
+    }else{
+      block(o.x,o.y,10,"#957444","#59432d",.55);
+      strokeLine(p.x-9,p.y-13,p.x-9,p.y-29,"#59432d",3);
+      strokeLine(p.x+7,p.y-5,p.x+7,p.y-21,"#59432d",3);
+      strokeLine(p.x-9,p.y-27,p.x+7,p.y-19,"#9d7d50",5);
+    }
   }
 
   function drawDecor(d) {
@@ -6841,7 +7613,34 @@ ctx.restore();
 
     if (a.burn > 0) text("♨", p.x + 18, p.y - 30, 17, "#e36d24");
     if (a.slow > 0) text("❄", p.x - 18, p.y - 30, 16, "#79b9c1");
+    if (a.acid > 0) text("☣", p.x + 22, p.y - 48, 17, "#8aca35");
   };
+
+  function drawInteriorFurniture(o){
+    const p=project(o.x,o.y);
+    if(o.kind==="bed"){
+      block(o.x,o.y,9,"#756044","#493d2e",.9);
+      diamond(o.x,o.y,"#71847b",.83,10);
+      diamond(o.x-.2,o.y-.2,"#dacfb3",.35,12);
+    }else if(o.kind==="table"){
+      for(const [dx,dy] of [[-.3,-.3],[.3,-.3],[-.3,.3],[.3,.3]]){
+        const foot=project(o.x+dx,o.y+dy);
+        strokeLine(foot.x,foot.y,foot.x,foot.y-18,"#493b2c",3);
+      }
+      diamond(o.x,o.y,"#ac8758",.9,19);
+      ellipse(p.x+3,p.y-20,4,2,"#cfc2a1");
+    }else if(o.kind==="cabinet"){
+      block(o.x,o.y,34,"#8b6b49","#564531",.8);
+      strokeLine(p.x,p.y-4,p.x,p.y-31,"#493b2c",2);
+      ellipse(p.x+5,p.y-18,1.5,1.5,"#dcc38d");
+    }else{
+      block(o.x,o.y,10,"#9a7752","#594530",.5);
+      const back=project(o.x-.2,o.y-.2,10);
+      strokeLine(back.x-8,back.y,back.x-8,back.y-14,"#594530",3);
+      strokeLine(back.x+8,back.y,back.x+8,back.y-14,"#594530",3);
+      strokeLine(back.x-8,back.y-13,back.x+8,back.y-13,"#a88a5d",5);
+    }
+  }
 
   // ---------------- Полная отрисовка пустыни ----------------
 
@@ -6902,8 +7701,8 @@ ctx.restore();
     ctx.scale(CFG.cameraZoom,CFG.cameraZoom);
     ctx.translate(-W/2,-H/2);
 
-    // Единая песчаная поверхность без шахматной сетки.
-    ctx.fillStyle = theme.sand;
+    // В доме пространство за стенами затемнено.
+    ctx.fillStyle = m.interior?"#302920":theme.sand;
     ctx.fillRect(-20, -20, W + 40, H + 40);
 
     const corners=[
@@ -6918,6 +7717,14 @@ ctx.restore();
     for (let y = yMin; y <= yMax; y++) {
       for (let x = xMin; x <= xMax; x++) {
         if (!visible(x + .5, y + .5, 80)) continue;
+        if(m.interior){
+          if(x>=1&&x<=m.interior.width&&y>=1&&y<=m.interior.height){
+            diamond(x+.5,y+.5,(x+y)%2?"#a88d68":"#ad936e",1.01);
+            const board=project(x+.5,y+.5);
+            strokeLine(board.x-25,board.y-3,board.x+6,board.y+12,"#68563e55",1);
+          }
+          continue;
+        }
 
         const kind = terrain[y * n + x] || 0;
         const p = project(x + .5, y + .5);
@@ -6979,6 +7786,11 @@ ctx.restore();
         p.x, p.y - 48, 12, "#392f22");
     }
 
+    if(m.interior){
+      const exit=project(m.exit.x,m.exit.y);
+      diamond(m.exit.x,m.exit.y,"#71684d",.9);
+      text("E · ВЫХОД",exit.x,exit.y+18,11,"#f5deb0");
+    }else{
     // Выход — радиомаяк вместо неонового портала.
     const exit = project(m.exit.x, m.exit.y);
     const locked = S.enemies.some(e => e.boss);
@@ -6990,6 +7802,7 @@ ctx.restore();
     strokeLine(exit.x, exit.y - 50, exit.x + 23, exit.y - 58, "#484b3e", 3);
     ellipse(exit.x, exit.y - 69, 5, 5, locked ? "#bd4634" : "#b6d58d");
     text(locked ? "СИГНАЛ ЗАГЛУШЕН" : "ЭВАКУАЦИЯ", exit.x, exit.y - 85, 11);
+    }
 
     drawMedkits();
 
@@ -7016,6 +7829,18 @@ ctx.restore();
     // Внешние скальные ограждения.
     for (let y = yMin; y <= yMax; y++) {
       for (let x = xMin; x <= xMax; x++) {
+        if(m.interior){
+          const {width,height}=m.interior;
+          if(x<=width+1&&y<=height+1&&
+             (x===0||y===0||x===width+1||y===height+1)&&
+             visible(x+.5,y+.5)){
+            objects.push({
+              type:"roomWall",value:{x:x+.5,y:y+.5,ix:x,iy:y},
+              depth:x+y+1
+            });
+          }
+          continue;
+        }
         const boundary = x === 0 || y === 0 || x === n - 1 || y === n - 1;
 
         if (boundary && m.tiles[y * n + x] && visible(x + .5, y + .5)) {
@@ -7037,6 +7862,13 @@ ctx.restore();
       }
     }
 
+    for(const furniture of m.furniture||[]){
+      if(visible(furniture.x,furniture.y)){
+        objects.push({
+          type:"furniture",value:furniture,depth:furniture.x+furniture.y
+        });
+      }
+    }
     for (const d of m.decor || []) {
       if (visible(d.x, d.y)) {
         objects.push({ type: "decor", value: d, depth: d.x + d.y });
@@ -7081,7 +7913,19 @@ ctx.restore();
     for (const item of objects) {
       const o = item.value;
 
-      if (item.type === "cap") {
+      if(item.type==="roomWall"){
+        const front=o.ix===m.interior.width+1||o.iy===m.interior.height+1;
+        const door=o.iy===m.interior.height+1&&o.ix===Math.floor(m.exit.x);
+        block(o.x,o.y,door?4:front?10:42,"#b4a085","#786550");
+        if(door){
+          const p=project(o.x,o.y);
+          strokeLine(p.x-20,p.y-8,p.x-20,p.y-36,"#43382b",4);
+          strokeLine(p.x+12,p.y+8,p.x+12,p.y-20,"#43382b",4);
+          strokeLine(p.x-20,p.y-36,p.x+12,p.y-20,"#43382b",4);
+        }
+      }else if(item.type==="furniture"){
+        drawInteriorFurniture(o);
+      }else if (item.type === "cap") {
         drawCapDrop(o);
       } else if (item.type === "combatFx") {
         drawCombatParticle(o);
@@ -7162,6 +8006,7 @@ ctx.restore();
     for (const b of S.bullets) {
       if (!visible(b.x, b.y, 20)) continue;
       if(b.donkeyPellet){drawDonkeyPellet(b);continue}
+      if(drawSpecialProjectile(b))continue;
 
       const p = project(b.x, b.y, 19);
       const prev = project(b.x - b.vx * .012, b.y - b.vy * .012, 19);
@@ -7187,7 +8032,7 @@ ctx.restore();
 
     // Редкие ветровые полосы: не закрывают персонажей и пули.
     ctx.globalAlpha = .08 * settings.flash;
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < (m.interior?0:12); i++) {
       const x = ((i * 173 + clock * 21) % (W + 180)) - 90;
       const y = (i * 97 + Math.sin(clock * .2 + i) * 20) % H;
       strokeLine(x, y, x + 75, y - 5, "#fff0cb", 2);
