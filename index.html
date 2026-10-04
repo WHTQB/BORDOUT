@@ -158,7 +158,7 @@ h3 {
   right: 12px;
   bottom: 12px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
   align-items: end;
   gap: 12px;
   pointer-events: none;
@@ -182,6 +182,124 @@ h3 {
 
 #playerHUD .hero-upgrades {
   margin-top: 6px;
+}
+
+#playerHUD .hero-header,
+#playerHUD .hero-money,
+#playerHUD .hero-slots,
+#playerHUD .hero-weapon-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#playerHUD .hero-header {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #897251;
+}
+
+#playerHUD .hero-money {
+  min-width: 0;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+#playerHUD .hero-money svg {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+}
+
+#playerHUD .hero-slots {
+  flex-shrink: 0;
+  gap: 5px;
+}
+
+#playerHUD .hero-slot {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid #897251;
+  border-radius: 3px;
+  background: #bba17a;
+  color: #574936;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+#playerHUD .hero-slot[aria-current="true"] {
+  border: 2px solid #465636;
+  background: #b9c68e;
+  color: #26351e;
+  box-shadow: inset 0 -3px 0 #64744b;
+}
+
+#playerHUD .hero-weapon-title {
+  margin-top: 7px;
+  font-weight: 800;
+}
+
+#playerHUD .hero-weapon-icon {
+  flex: 0 0 42px;
+}
+
+#playerHUD .hero-weapon-icon svg {
+  display: block;
+  width: 42px;
+  height: 28px;
+}
+
+#playerHUD .hero-weapon-title strong {
+  min-width: 0;
+}
+
+#playerHUD .hero-weapon-art {
+  margin: 5px 0;
+  border: 1px solid #897251;
+  border-radius: 3px;
+  background-color: #e9d9b6;
+  background-image:
+    linear-gradient(#89725120 1px, transparent 1px),
+    linear-gradient(90deg, #89725120 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+#playerHUD .hero-weapon-art svg {
+  display: block;
+  width: 100%;
+  height: clamp(56px, 12vh, 100px);
+}
+
+#playerHUD .hero-ammo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+#playerHUD .hero-ammo-loaded {
+  font-size: 30px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+#playerHUD .hero-ammo-loaded small {
+  font-size: 16px;
+  color: #736047;
+}
+
+#playerHUD .hero-ammo-empty {
+  color: #a52d21;
+}
+
+#playerHUD .hero-weapon-status {
+  margin: 4px 0 8px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid #897251;
 }
 
 #playerHUD .hero-meters {
@@ -948,6 +1066,7 @@ details[open] summary {
     left: 8px;
     right: 8px;
     bottom: 8px;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
     gap: 8px;
   }
 
@@ -1014,7 +1133,7 @@ details[open] summary {
 <canvas id="game"></canvas>
 <div id="hud" class="panel"></div>
 <div id="lowerHUD">
- <div id="playerHUD" class="panel" aria-label="Состояние героя" hidden></div>
+ <div id="playerHUD" class="panel" aria-label="Оружие и состояние героя" hidden></div>
  <div id="bottom"><div id="toast"></div><div id="hint" class="panel"></div></div>
  <div id="ammoHUD" class="panel" aria-label="Боезапас активного оружия" hidden></div>
 </div>
@@ -1035,6 +1154,7 @@ const CFG={
  staminaDelay:2,sprintMultiplier:1.815,staminaRestart:.25,
  healPrice:25,armorPrice:22,ammoPrice:12,
  medkitChance:.2,medkitHP:40,medkitSeconds:1,
+ capMagnetRadius:2.5,capPickupRadius:.22,capScatterSeconds:.45,
  casePrice:l=>45+20*l
 };
 const KNIFE=Object.freeze({
@@ -1474,7 +1594,7 @@ let ambientSource=null,footstepStates=new WeakMap(),footstepMap=null;
 const soundTargets=new WeakMap();
 const soundVariants=new Map();
 const SOUND_NAMES=[
- "knife_swing","knife_hit",
+ "knife_swing","knife_hit","coin_pickup",
  ...SHOT_SOUNDS,"reload_start","reload_end","barrel_explosion","crate_break",
  "step_sand","step_road","player_step_sand","player_step_road","ambience"
 ];
@@ -1579,6 +1699,25 @@ function encodeSoundWav(channels,sampleRate=22050){
 }
 function synthesizeSound(name,variant=0){
  const sr=22050,r=rng(hash("dust-wav-v1:"+name+":"+variant));
+ if(name==="coin_pickup"){
+  const duration=.19,pitch=.97+r()*.06;
+  const data=new Float32Array(Math.ceil(duration*sr));
+  for(let i=0;i<data.length;i++){
+   const t=i/sr;
+   let sample=0;
+   for(const [start,freq,level] of [[0,1900,.34],[.038,2850,.25]]){
+    const u=t-start;
+    if(u<0)continue;
+    const envelope=(1-Math.exp(-u/.001))*Math.exp(-u/.035);
+    sample+=level*envelope*(
+     Math.sin(2*Math.PI*freq*pitch*u)+
+     .3*Math.sin(2*Math.PI*freq*1.47*pitch*u)
+    );
+   }
+   data[i]=sample*clamp((duration-t)/.02,0,1);
+  }
+  return encodeSoundWav([data],sr);
+ }
  if(name==="knife_swing"||name==="knife_hit"){
   const hit=name==="knife_hit",duration=hit?.17:.22;
   const data=new Float32Array(Math.ceil(duration*sr));
@@ -2168,6 +2307,7 @@ function buildLevel(){
  S.p.staminaWait=0;S.p.exhausted=false;S.p.sprinting=false;
  S.bullets=[];S.fx=[];S.loot=[];S.enemies=[];S.props=[];
  S.medkits=[];S.p.heal=0;
+ S.caps=[];capPickupSoundWait=0;
  S.npcSpawnClock=0;S.npcSpawnWave=0;
  for(const sh of S.map.shops){
   sh.items=sh.kind==="weapons"
@@ -2823,10 +2963,121 @@ function hitEnemy(e,damage,effect=0,direction=null){
  emitHitVisual(e,damage,direction);
  if(e.hp<=0)killEnemy(e);
 }
+let capPickupSoundWait=0;
+const capDropOutline=new Path2D("M10 2L12 3L14 2L15 4L18 3.5L18.5 6L21 6L20.5 9L22 10L21 12L22 14L20 15L20.5 18L18 18.5L18 21L15 20.5L14 22L12 21L10 22L9 20L6 20.5L5.5 18L3 18L3.5 15L2 14L3 12L2 10L4 9L3.5 6L6 5.5L6 3L9 3.5Z");
+const capDropStar=new Path2D("M12 7L13.4 10.2L17 10.5L14.3 12.9L15.1 16.4L12 14.5L8.9 16.4L9.7 12.9L7 10.5L10.6 10.2Z");
+
+function makeCapDrops(origin,amount,seed){
+ if(!Number.isSafeInteger(amount)||amount<=0||
+    !Number.isFinite(origin.x)||!Number.isFinite(origin.y))return [];
+ const random=rng(seed);
+ const count=Math.min(amount,origin.boss?8:3);
+ const base=Math.floor(amount/count),remainder=amount%count;
+ return Array.from({length:count},(_,i)=>{
+  const angle=(i+random()*.4)/count*Math.PI*2;
+  const speed=1.5+random()*1.5;
+  return {
+   x:origin.x,y:origin.y,capValue:base+(i<remainder?1:0),
+   age:0,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed
+  };
+ });
+}
+function normalizeCapDrops(state){
+ const m=state.map;
+ state.caps=(Array.isArray(state.caps)?state.caps:[]).filter(c=>{
+  if(!c||!Number.isFinite(c.x)||!Number.isFinite(c.y)||
+     !Number.isSafeInteger(c.capValue)||c.capValue<=0)return false;
+  const x=Math.floor(c.x),y=Math.floor(c.y);
+  return x>=0&&y>=0&&x<m.n&&y<m.n&&m.tiles[y*m.n+x]===0;
+ }).map(c=>({
+  x:c.x,y:c.y,capValue:c.capValue,
+  age:Number.isFinite(c.age)?clamp(c.age,0,CFG.capScatterSeconds):CFG.capScatterSeconds,
+  vx:Number.isFinite(c.vx)?clamp(c.vx,-3,3):0,
+  vy:Number.isFinite(c.vy)?clamp(c.vy,-3,3):0
+ }));
+}
+function capPathClear(a,b){
+ // Проверяем весь отрезок, включая конец: крышки не проходят сквозь стены.
+ const steps=Math.max(1,Math.ceil(dist(a,b)/.05));
+ for(let i=0;i<=steps;i++){
+  const t=i/steps;
+  if(!valid(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t,.04))return false;
+ }
+ return true;
+}
+function stepCapDrop(c,player,dt,clear){
+ if(!Number.isFinite(dt)||dt<=0)return false;
+ const scatter=Math.min(dt,Math.max(0,CFG.capScatterSeconds-c.age));
+ if(scatter>0){
+  const nextAge=Math.min(CFG.capScatterSeconds,c.age+scatter);
+  const travel=(Math.exp(-6*c.age)-Math.exp(-6*nextAge))/6;
+  const target={x:c.x+c.vx*travel,y:c.y+c.vy*travel};
+  if(clear(c,target)){c.x=target.x;c.y=target.y}
+  else {c.vx=0;c.vy=0}
+  c.age=nextAge;
+ }
+ const remaining=dt-scatter;
+ if(remaining<=0)return false;
+ const distance=dist(c,player);
+ if(distance>CFG.capMagnetRadius||!clear(c,player))return false;
+ if(distance<=CFG.capPickupRadius)return true;
+ const speed=4+(CFG.capMagnetRadius-distance)*4;
+ const travel=Math.min(distance,speed*remaining);
+ c.x+=(player.x-c.x)*travel/distance;
+ c.y+=(player.y-c.y)*travel/distance;
+ return dist(c,player)<=CFG.capPickupRadius;
+}
+function updateCapDrops(dt){
+ if(!S||paused||S.dead||S.between||!Number.isFinite(dt)||dt<=0)return;
+ capPickupSoundWait=Math.max(0,capPickupSoundWait-dt);
+ const caps=S.caps;
+ if(!caps?.length)return;
+ let write=0,amount=0;
+ for(const c of caps){
+  if(stepCapDrop(c,S.p,dt,capPathClear))amount+=c.capValue;
+  else caps[write++]=c;
+ }
+ // Удаление и начисление происходят вместе, до следующего сохранения.
+ caps.length=write;
+ if(amount>0){
+  S.money+=amount;
+  if(capPickupSoundWait===0){
+   playWav("coin_pickup",{volume:.65});
+   capPickupSoundWait=.07;
+  }
+ }
+}
+function drawCapDrop(c){
+ const t=clamp(c.age/CFG.capScatterSeconds,0,1);
+ const height=3+8*(1-t)+48*t*(1-t);
+ const ground=project(c.x,c.y),p=project(c.x,c.y,height);
+ if(p.x<-40||p.x>W+40||p.y<-50||p.y>H+50)return;
+ ctx.save();
+ ellipse(ground.x,ground.y+2,7,3,"#302a2448");
+ ctx.translate(p.x,p.y);
+ ctx.rotate((1-t)*Math.PI*2);
+ ctx.scale(.7,.7);
+ ctx.translate(-12,-12);
+ ctx.lineWidth=1.4;
+ ctx.lineJoin="round";
+ ctx.strokeStyle="#49483e";
+ ctx.fillStyle="#a6a598";
+ ctx.fill(capDropOutline);
+ ctx.stroke(capDropOutline);
+ ellipse(12,12,7.4,7.4,"#ad543c");
+ ctx.strokeStyle="#ead9b8";
+ ctx.lineWidth=1.2;
+ ctx.stroke();
+ ctx.fillStyle="#ead9b8";
+ ctx.fill(capDropStar);
+ ctx.restore();
+}
 function killEnemy(e){
  if(e.rewarded)return;e.rewarded=true;
  e.hp=0;
- S.money+=Math.round((e.boss?180:7+S.level*2)*(1+.25*(S.up.economy||0)));
+ const reward=Math.round((e.boss?180:7+S.level*2)*(1+.25*(S.up.economy||0)));
+ S.caps??=[];
+ S.caps.push(...makeCapDrops(e,reward,hash(S.map.seed+":"+e.id+":caps")));
  if(S.up.siphon&&e.burn>0&&S.p.hp>0){
   S.p.armor=Math.min(S.p.maxArmor,S.p.armor+1);
  }
@@ -3325,6 +3576,7 @@ function update(dt,realDt=dt){
  if(mouse.down)shoot();
  updateEnemies(dt);if(S.dead)return;
  updateBullets(dt);if(S.dead)return;
+ updateCapDrops(dt);
  if(stepMedkitHealing(p,realDt)){
   beep(820,.08);
   save();
@@ -4161,10 +4413,12 @@ function draw(){
   if(p.x> -80&&p.x<W+80&&p.y> -80&&p.y<H+150)
    objects.push({x:x+.5,y:y+.5,wall:true});
  }
- objects.push(...S.props,...S.enemies,S.p);
+ objects.push(...S.props,...S.enemies,...(S.caps||[]),S.p);
  objects.sort((a,b)=>(a.x+a.y)-(b.x+b.y));
  for(const o of objects){
-  if(o.wall){
+  if(o.capValue>0){
+   drawCapDrop(o);
+  }else if(o.wall){
    const p=project(o.x,o.y),pp=project(S.p.x,S.p.y);
    if(p.y>pp.y-10&&p.y<pp.y+75&&Math.abs(p.x-pp.x)<55)ctx.globalAlpha=.25;
    const height=theme.style===1?35:theme.style===2?42:48;
@@ -4229,7 +4483,7 @@ function drawMinimap(){
  dot(m.exit,"#ad3ecd",3);m.shops.forEach(s=>dot(s,"#4daf57"));
  dot(S.p,"#ed447d",3);
 }
-let lastHUD="",lastAmmoHUD="",lastRunHUD="";
+let lastHUD="",lastRunHUD="";
 let ammoPreviewWeapon=null,ammoPreviewHTML="";
 const ammoHUD=document.getElementById("ammoHUD");
 function drawHUD(){
@@ -4237,7 +4491,45 @@ function drawHUD(){
  const runHTML=`<b>ПЫЛЬНЫЙ ТРАКТ / ${S.level} — ${S.map.layout?.name||THEMES[S.theme].name} · ${THEMES[S.theme].name}</b>
  <div class="small">Seed забега: ${S.seed} · карты: ${S.map.seed}</div>`;
  if(runHTML!==lastRunHUD){$("#hud").innerHTML=runHTML;lastRunHUD=runHTML}
- const html=`<div class="hero-meters">
+ if(ammoPreviewWeapon!==w||!ammoPreviewHTML){
+  ammoPreviewWeapon=w;
+  ammoPreviewHTML=w?weaponPreview(w):knifePreview();
+ }
+ const weaponName=String(w?w.name:KNIFE.name)
+  .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+ const html=`<div class="hero-header">
+  <div class="hero-money" aria-label="Деньги: ${S.money}">
+   <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path d="M10 2L12 3L14 2L15 4L18 3.5L18.5 6L21 6L20.5 9L22 10L21 12L22 14L20 15L20.5 18L18 18.5L18 21L15 20.5L14 22L12 21L10 22L9 20L6 20.5L5.5 18L3 18L3.5 15L2 14L3 12L2 10L4 9L3.5 6L6 5.5L6 3L9 3.5Z"
+     fill="#a6a598" stroke="#49483e" stroke-width="1.2" stroke-linejoin="round"/>
+    <circle cx="12" cy="12" r="7.4" fill="#ad543c" stroke="#e0d4b8" stroke-width="1.2"/>
+    <path d="M12 7L13.4 10.2L17 10.5L14.3 12.9L15.1 16.4L12 14.5L8.9 16.4L9.7 12.9L7 10.5L10.6 10.2Z"
+     fill="#ead9b8"/>
+    <path d="M6.5 8L8 6.5M16 17.5L17.5 16"
+     fill="none" stroke="#f4e8cd" stroke-width="1.2" stroke-linecap="round"/>
+   </svg>
+   <b>${S.money}</b>
+  </div>
+  <div class="hero-slots" role="group" aria-label="Слоты оружия">
+   <span class="small">СЛОТ</span>
+   ${[0,1].map(slot=>`<span class="hero-slot" aria-current="${slot===p.slot}" aria-label="Слот ${slot+1}${slot===p.slot?", активный":""}">${slot+1}</span>`).join("")}
+  </div>
+ </div>
+ <div class="hero-weapon-title">
+  <span class="hero-weapon-icon" aria-hidden="true">${ammoPreviewHTML}</span>
+  <strong>${weaponName}</strong>
+ </div>
+ <div class="hero-weapon-art">${ammoPreviewHTML}</div>
+ ${w?`<div class="hero-ammo">
+  <span class="hero-ammo-loaded${w.ammo===0?" hero-ammo-empty":""}" aria-label="В магазине ${w.ammo} из ${w.mag}">
+   ${w.ammo}<small> / ${w.mag}</small>
+  </span>
+  <span>Запас: <b>${w.reserve}</b></span>
+ </div>
+ <div class="small hero-weapon-status">${p.reload>0?"Перезарядка · "+p.reload.toFixed(1)+" с":w.ammo===0?(w.reserve>0?"R — перезарядить":"Нет патронов"):w.ammo<w.mag&&w.reserve>0?"R — перезарядить":"Готово к стрельбе"}</div>`:
+ `<div class="hero-ammo"><b>Урон: ${KNIFE.damage} HP</b><span>${KNIFE.range.toLocaleString("ru-RU")} м</span></div>
+ <div class="small hero-weapon-status">ЛКМ — укол · Без патронов</div>`}
+ <div class="hero-meters">
  <span class="hero-meter-label">БРОНЯ</span>
  <div class="armor-cells" role="img" aria-label="Бронежилет: ${p.armor} из 10 ячеек" title="Одна ячейка полностью поглощает одно попадание">${Array.from({length:10},(_,i)=>`<i class="${i<p.armor?"":"empty"}"></i>`).join("")}</div>
  <span class="hero-meter-label">ЗДОРОВЬЕ</span>
@@ -4245,29 +4537,12 @@ function drawHUD(){
  <span class="hero-meter-label">ВЫНОСЛИВОСТЬ</span>
  <div class="bar" title="Выносливость: Shift + движение — бег"><i style="width:${clamp(p.stamina/staminaStats(S.up).max*100,0,100).toFixed(1)}%;background:${p.exhausted?"#b36a3b":"#83964d"}"></i></div>
  </div>
- <div class="hero-values"><b>Деньги: ${S.money} ¤</b></div>
  <div>${p.exhausted?"Истощение: восстановите 25% STA и отпустите Shift":p.sprinting&&!paused?"Бег":`Бег: ${(p.stamina/staminaStats(S.up).drain).toFixed(1)} с · Shift`}</div>
  <div class="small hero-upgrades">${up||"Улучшений пока нет"}</div>`;
  const playerHUD=document.getElementById("playerHUD");
  playerHUD.hidden=false;
  if(html!==lastHUD){playerHUD.innerHTML=html;lastHUD=html}
- ammoHUD.hidden=paused||S.dead;
- if(!ammoHUD.hidden){
-  if(ammoPreviewWeapon!==w){
-   ammoPreviewWeapon=w;
-   ammoPreviewHTML=w?weaponPreview(w):"";
-  }
-  const ammoHTML=w?`<div class="ammo-weapon">${ammoPreviewHTML}<span style="color:${RARITY[w.rare].color}">${w.name}<br>${CLASSES[w.ci].name}<br>${RARITY[w.rare].name}</span></div>
-   <div class="ammo-label">Слот ${p.slot+1} · в магазине</div>
-   <div class="ammo-loaded${w.ammo===0?" ammo-empty":""}">${w.ammo}<span class="ammo-capacity"> / ${w.mag}</span></div>
-   <div class="ammo-reserve"><span class="ammo-label">Запас</span> ${w.reserve}</div>
-   <div class="ammo-status">${p.reload>0?"Перезарядка · "+p.reload.toFixed(1)+" с":w.ammo===0?(w.reserve>0?"R — перезарядить":"Нет патронов"):w.ammo<w.mag&&w.reserve>0?"R — перезарядить":"Готово к стрельбе"}</div>`:
-   `<div class="ammo-weapon">${knifePreview()}<span>Нож<br>Холодное оружие</span></div>
-   <div class="ammo-label">Слот ${p.slot+1} · урон ${KNIFE.damage} HP</div>
-   <div class="ammo-status">ЛКМ — укол · ${KNIFE.range.toLocaleString("ru-RU")} м</div>
-   <div class="small">Tab — инвентарь · Q — другой слот</div>`;
-  if(ammoHTML!==lastAmmoHUD){ammoHUD.innerHTML=ammoHTML;lastAmmoHUD=ammoHTML}
- }
+ ammoHUD.hidden=true;
  $("#hint").textContent=nearest()?.text||"WASD · Shift — бег · ЛКМ · R · Q · E · Tab — инвентарь · Esc";
 }
 function pauseWindow(){
@@ -4585,7 +4860,68 @@ function testKnife(){
   KNIFE.hitTime>0&&KNIFE.hitTime<KNIFE.duration&&KNIFE.duration<KNIFE.cooldown);
  return results;
 }
+function testCapDrops(){
+ const results=[];
+ const check=(name,ok)=>results.push({name,ok:Boolean(ok)});
+ const hero={x:0,y:0};
+ const fresh=(x=2)=>({
+  x,y:0,capValue:9,age:CFG.capScatterSeconds,vx:0,vy:0
+ });
+ let totals=true;
+ for(const amount of [1,2,9,11,180,270]){
+  for(const boss of [false,true]){
+   const drops=makeCapDrops({x:2,y:2,boss},amount,123);
+   if(drops.reduce((sum,c)=>sum+c.capValue,0)!==amount||
+      drops.some(c=>!Number.isSafeInteger(c.capValue)||c.capValue<=0)){
+    totals=false;
+   }
+  }
+ }
+ check("Разделение награды не теряет и не добавляет деньги",totals);
+ const drops=makeCapDrops({x:2,y:2},11,123);
+ check("Выпадение повторяется по seed",
+  JSON.stringify(drops)===JSON.stringify(makeCapDrops({x:2,y:2},11,123)));
+ check("Некорректная награда не создаёт крышек",
+  [0,-1,NaN,Infinity,1.5].every(n=>makeCapDrops(hero,n,1).length===0));
+
+ for(const fps of [10,30,60,144]){
+  let caps=[fresh()],money=0;
+  for(let frame=0;frame<fps*2;frame++){
+   caps=caps.filter(c=>{
+    if(!stepCapDrop(c,hero,1/fps,()=>true))return true;
+    money+=c.capValue;
+    return false;
+   });
+  }
+  check(`Подбор начисляет награду один раз при ${fps} FPS`,
+   money===9&&caps.length===0);
+ }
+ const blocked=fresh(),before=JSON.stringify(blocked);
+ check("Стена блокирует притяжение и подбор",
+  !stepCapDrop(blocked,hero,.1,()=>false)&&JSON.stringify(blocked)===before);
+ const far=fresh(CFG.capMagnetRadius+.01);
+ const farBefore=JSON.stringify(far);
+ check("Вне радиуса крышки остаются на месте",
+  !stepCapDrop(far,hero,.1,()=>true)&&JSON.stringify(far)===farBefore);
+ const idle=fresh(),idleBefore=JSON.stringify(idle);
+ for(const dt of [0,-1,NaN,Infinity])stepCapDrop(idle,hero,dt,()=>true);
+ check("Некорректное время не меняет крышки",JSON.stringify(idle)===idleBefore);
+ const launch={...fresh(0),age:0};
+ check("Свежая крышка сначала выпадает, а не начисляется мгновенно",
+  !stepCapDrop(launch,hero,.1,()=>true));
+ const restored=JSON.parse(JSON.stringify({
+  map:{n:5,tiles:Array(25).fill(0)},caps:drops
+ }));
+ normalizeCapDrops(restored);
+ check("JSON сохраняет неподобранную награду",
+  restored.caps.reduce((sum,c)=>sum+c.capValue,0)===11);
+ const legacy={map:restored.map};
+ normalizeCapDrops(legacy);
+ check("Старое сохранение получает пустой список крышек",legacy.caps.length===0);
+ return results;
+}
 function runTests(){
+ const capChecks=testCapDrops();
  const knifeChecks=testKnife();
  const inventoryChecks=testInventoryTransfers();
  const bulletDropChecks=testBulletDrops();
@@ -4738,6 +5074,8 @@ function runTests(){
  <p>Совместимость старого расчёта темпа без оружия; бонус быстрых NPC ×1,3: ${npcTimingOK?"OK":"ОШИБКА"}</p>
  <p>Радиус обнаружения 11,7, движение +70% и ускорение стрельбы босса: ${npcBoostOK?"OK":"ОШИБКА"}</p>
  <p>Шесть разных ролей в составе уровня на 100 seeds: ${npcRosterOK?"OK":"ОШИБКА"}</p>
+ <h3>Крышки и магнитный подбор</h3>
+ ${capChecks.map(t=>`<p class="small">${t.ok?"OK":"ОШИБКА"} — ${t.name}</p>`).join("")}
  <h3>Нож</h3>
  ${knifeChecks.map(t=>`<p class="small">${t.ok?"OK":"ОШИБКА"} — ${t.name}</p>`).join("")}
  <h3>Инвентарь</h3>
@@ -4764,6 +5102,8 @@ function loadRun(){
   if(!S.map||!S.p||!validateMap(S.map))throw Error("Формат");
   normalizeStamina(S);
   normalizeArmor(S);
+  normalizeCapDrops(S);
+  capPickupSoundWait=0;
   if(!Array.isArray(S.p.weapons)||S.p.weapons.length!==2)throw Error("Слоты оружия");
   S.p.weapons=S.p.weapons.map(w=>w??null);
   if(S.p.slot!==0&&S.p.slot!==1)S.p.slot=0;
@@ -6335,13 +6675,20 @@ ctx.restore();
         objects.push({type:"bulletDrop",value:drop,depth:drop.x+drop.y+.02});
       }
     }
+    for(const cap of S.caps||[]){
+      if(visible(cap.x,cap.y,60)){
+        objects.push({type:"cap",value:cap,depth:cap.x+cap.y});
+      }
+    }
     objects.push({ type: "player", value: S.p, depth: S.p.x + S.p.y });
     objects.sort((a, b) => a.depth - b.depth);
 
     for (const item of objects) {
       const o = item.value;
 
-      if (item.type === "combatFx") {
+      if (item.type === "cap") {
+        drawCapDrop(o);
+      } else if (item.type === "combatFx") {
         drawCombatParticle(o);
       } else if (item.type === "bulletDrop") {
         drawBulletDrop(o);
