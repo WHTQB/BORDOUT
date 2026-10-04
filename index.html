@@ -184,6 +184,32 @@ h3 {
   margin-top: 6px;
 }
 
+#playerHUD .hero-meters {
+  display: grid;
+  grid-template-columns: min(110px, 44%) minmax(0, 1fr);
+  align-items: center;
+  gap: 6px 8px;
+  margin: 5px 0 8px;
+}
+
+#playerHUD .hero-meter-label {
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+#playerHUD .hero-meters .bar,
+#playerHUD .hero-meters .armor-cells {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+#playerHUD .hero-meters .armor-cells {
+  gap: clamp(1px, .25vw, 4px);
+}
+
 #hud {
   overflow-wrap: anywhere;
 }
@@ -385,6 +411,183 @@ summary {
 
 details[open] summary {
   margin-bottom: 12px;
+}
+
+.inventory-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.inventory-heading h1 {
+  margin: 0;
+}
+
+.inventory-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.inventory-layout > section {
+  min-width: 0;
+}
+
+.inventory-character {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 100px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 310px;
+  padding: 8px;
+  border: 1px solid #897251;
+  background: #bba17a50;
+}
+
+.inventory-avatar {
+  width: 100%;
+  height: 290px;
+}
+
+.inventory-hand {
+  min-width: 0;
+}
+
+.inventory-item {
+  width: 100%;
+  min-width: 0;
+  padding: 8px;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+
+.inventory-item svg {
+  display: block;
+  width: 100%;
+  height: 60px;
+  pointer-events: none;
+}
+
+.inventory-item[aria-pressed="true"] {
+  border-color: #465636;
+  background: #b9c68e;
+  box-shadow: 0 3px 0 #465636;
+}
+
+.inventory-item[aria-pressed="true"] svg {
+  width: calc(100% + 12px);
+  height: 90px;
+  margin-left: -6px;
+  margin-right: -6px;
+}
+
+.inventory-tooltip svg {
+  display: block;
+  width: 100%;
+  height: 180px;
+}
+
+.inventory-hand > button + button {
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px;
+  font-size: 11px;
+}
+
+.inventory-floor {
+  min-height: 120px;
+  padding: 12px;
+  border: 2px dashed #897251;
+}
+
+.inventory-floor h2 {
+  font-size: 30px;
+  letter-spacing: 2px;
+}
+
+.inventory-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+  max-height: 42vh;
+  overflow: auto;
+  padding: 4px;
+  overscroll-behavior: contain;
+}
+
+.inventory-shop {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 2px solid #897251;
+}
+
+.inventory-tooltip {
+  position: fixed;
+  z-index: 120;
+  width: min(390px, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: #ead9b8;
+  box-shadow: 0 5px 20px #241c1370;
+}
+
+.inventory-tooltip .inventory-tooltip-actions {
+  position: sticky;
+  top: -12px;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -12px -16px 10px;
+  padding: 10px 12px;
+  background: #dac399;
+  border-bottom: 1px solid #897251;
+}
+
+.inventory-tooltip button {
+  padding: 6px 8px;
+  font-size: 11px;
+}
+
+.inventory-tooltip .weapon-stat {
+  flex-wrap: wrap;
+}
+
+.inventory-tooltip .weapon-stat__value {
+  margin-left: auto;
+}
+
+.inventory-tooltip:focus-visible {
+  outline: 3px solid #52797a;
+}
+
+@media (max-width: 760px) {
+  .inventory-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .inventory-character {
+    min-height: 260px;
+    grid-template-columns: minmax(0, 1fr) 80px minmax(0, 1fr);
+  }
+
+  .inventory-avatar {
+    height: 250px;
+  }
+
+  .inventory-heading h1 {
+    font-size: 22px;
+  }
+
+  .inventory-tooltip .inventory-tooltip-actions {
+    top: -10px;
+    margin: -10px -12px 10px;
+  }
 }
 
 .window.weapon-shop-window {
@@ -834,6 +1037,38 @@ const CFG={
  medkitChance:.2,medkitHP:40,medkitSeconds:1,
  casePrice:l=>45+20*l
 };
+const KNIFE=Object.freeze({
+ name:"Нож",damage:50,range:1.2,cooldown:.55,hitTime:.1,duration:.32,
+ coneCos:.65
+});
+const KNIFE_ART={
+ grip:"M-9 -3H3V3H-9Z",
+ guard:"M2 -6H5V6H2Z",
+ blade:"M5 -4H18L29 0L18 4H5Z"
+};
+const knifePaths=[
+ new Path2D(KNIFE_ART.grip),new Path2D(KNIFE_ART.guard),new Path2D(KNIFE_ART.blade)
+];
+function knifePreview(){
+ return `<svg viewBox="-14 -14 48 28" width="100%" height="100"
+  role="img" aria-label="Нож">
+  <g stroke="#292c28" stroke-width="1.5" stroke-linejoin="round">
+   <path d="${KNIFE_ART.grip}" fill="#70523b"/>
+   <path d="${KNIFE_ART.guard}" fill="#8c927d"/>
+   <path d="${KNIFE_ART.blade}" fill="#d2ddd9"/>
+   <path d="M6 0H25" fill="none" stroke="#ffffff"/>
+  </g></svg>`;
+}
+function knifeStats(){
+ return `<h3>Нож</h3>${knifePreview()}
+  <span class="tag">Холодное оружие</span>
+  <p>Урон: <b>${KNIFE.damage} HP</b><br>
+  Дальность: ${KNIFE.range.toLocaleString("ru-RU")} м<br>
+  Интервал ударов: ${KNIFE.cooldown.toLocaleString("ru-RU")} с</p>
+  <p class="small">ЛКМ — укол в направлении курсора. Одна цель за удар.
+  Не требует патронов. Постоянно доступен в слоте без огнестрельного оружия.
+  Выбросить нож нельзя.</p>`;
+}
 const THEMES=[
  {name:"Пластиковый пригород",sky:"#b7ddff",floor:"#e5d3ff",
  alt:"#d0c5f0",wall:"#fd88be",edge:"#aa629f",accent:"#7ce9ff",style:0},
@@ -1239,11 +1474,14 @@ let ambientSource=null,footstepStates=new WeakMap(),footstepMap=null;
 const soundTargets=new WeakMap();
 const soundVariants=new Map();
 const SOUND_NAMES=[
+ "knife_swing","knife_hit",
  ...SHOT_SOUNDS,"reload_start","reload_end","barrel_explosion","crate_break",
  "step_sand","step_road","player_step_sand","player_step_road","ambience"
 ];
 
-const soundtrackFiles=["soundtrack1.mp3","soundtrack2.mp3","soundtrack3.mp3"];
+const soundtrackFiles=[
+ "soundtrack1.mp3","soundtrack2.mp3","soundtrack3.mp3"
+];
 let soundtrackFile=soundtrackFiles[Math.floor(Math.random()*soundtrackFiles.length)];
 const soundtrack=new Audio();
 soundtrack.loop=false;
@@ -1341,6 +1579,26 @@ function encodeSoundWav(channels,sampleRate=22050){
 }
 function synthesizeSound(name,variant=0){
  const sr=22050,r=rng(hash("dust-wav-v1:"+name+":"+variant));
+ if(name==="knife_swing"||name==="knife_hit"){
+  const hit=name==="knife_hit",duration=hit?.17:.22;
+  const data=new Float32Array(Math.ceil(duration*sr));
+  const pitch=.94+r()*.12;
+  let low=0,phase=0;
+  for(let i=0;i<data.length;i++){
+   const t=i/sr,u=t/duration,noise=r()*2-1;
+   low+=(hit?.16:.06+.3*(1-u))*(noise-low);
+   phase+=2*Math.PI*(hit?145:550)*(1-.55*u)*pitch/sr;
+   const envelope=hit
+    ?(1-Math.exp(-t/.0015))*Math.exp(-t/.032)
+    :Math.pow(Math.sin(Math.PI*u),2);
+   const sample=hit
+    ?low*1.7+Math.sin(phase)*.45+(noise-low)*.15
+    :(noise-low)*.45+low*.35;
+   data[i]=Math.tanh(sample*1.4)*envelope*.65*
+    clamp((duration-t)/.015,0,1);
+  }
+  return encodeSoundWav([data],sr);
+ }
  if(name==="ambience"){
   const length=sr*16,overlap=sr;
   const channels=[];
@@ -1866,7 +2124,10 @@ function save(){
  try{localStorage.setItem("prism-save",JSON.stringify(S));return true}
  catch{toast("Сохранение недоступно в этом браузере");return false}
 }
+let inventoryCleanup=null;
 function show(html){
+ cancelKnifeAttack();
+ if(inventoryCleanup){inventoryCleanup();inventoryCleanup=null}
  paused=true;mouse.down=false;keys={};
  syncSound();
  $("#content").classList.remove("weapon-shop-window");
@@ -1874,6 +2135,7 @@ function show(html){
 }
 function closeModal(){
  if(!S||S.dead)return;
+ if(inventoryCleanup){inventoryCleanup();inventoryCleanup=null}
  lastTime=performance.now();
  paused=false;$("#modal").classList.add("hidden");keys={};mouse.down=false;
 }
@@ -1979,16 +2241,18 @@ function reveal(){
 const activeWeapon=()=>S.p.weapons[S.p.slot];
 function reload(){
  const p=S.p,w=activeWeapon();
- if (p.reload <= 0 && w.ammo < w.mag && w.reserve > 0) {
+ if (w && p.reload <= 0 && w.ammo < w.mag && w.reserve > 0) {
   p.reload=w.reload*Math.pow(.85,S.up.reload||0);
   getCombatVisuals().reloads.set(p,{weapon:w,total:p.reload});
   playWav("reload_start",{volume:.85,rate:w.ci===6?.85:1});
  }
 }
 function switchWeapon(slot){
- if(!S||paused)return;S.p.slot=slot??(1-S.p.slot);S.p.reload=0;S.p.shot=.15;
+ if(!S||paused)return;
+ cancelKnifeAttack();
+ S.p.slot=slot??(1-S.p.slot);S.p.reload=0;S.p.shot=.15;
 }
-function refill(w,n){const take=Math.min(n,w.mag-w.ammo,w.reserve);w.ammo+=take;w.reserve-=take}
+function refill(w,n){if(!w)return;const take=Math.min(n,w.mag-w.ammo,w.reserve);w.ammo+=take;w.reserve-=take}
 function normalizeStamina(state){
  const p=state.p,stats=staminaStats(state.up);
  p.stamina=Number.isFinite(p.stamina)?clamp(p.stamina,0,stats.max):stats.max;
@@ -2016,9 +2280,96 @@ function muzzlePosition(actor,angle,w=null){
  const oy=(-22+sy/norm*length)*scale+19;
  return {x:actor.x+ox/64+oy/32,y:actor.y-ox/64+oy/32};
 }
+function selectKnifeTarget(hero,direction,enemies,clear){
+ const length=Math.hypot(direction.x,direction.y);
+ if(!Number.isFinite(length)||length<1e-8)return null;
+ const dx=direction.x/length,dy=direction.y/length;
+ let target=null,best=Infinity;
+ for(const e of enemies){
+  if(!(e.hp>0))continue;
+  const x=e.x-hero.x,y=e.y-hero.y,d=Math.hypot(x,y);
+  if(!Number.isFinite(d)||d>KNIFE.range||d>=best)continue;
+  if(d>1e-8&&(x*dx+y*dy)/d<KNIFE.coneCos)continue;
+  if(!clear(hero,e))continue;
+  target=e;best=d;
+ }
+ return target;
+}
+function knifeLineClear(a,b){
+ if(!lineClear(a,b))return false;
+ const dx=b.x-a.x,dy=b.y-a.y,length2=dx*dx+dy*dy;
+ // Ящики и бочки также закрывают прямой укол.
+ return !S.props.some(o=>{
+  if(!(o.hp>0))return false;
+  const t=length2>0?clamp(((o.x-a.x)*dx+(o.y-a.y)*dy)/length2,0,1):0;
+  return Math.hypot(o.x-a.x-dx*t,o.y-a.y-dy*t)<.3;
+ });
+}
+function cancelKnifeAttack(){
+ if(combatVisuals)combatVisuals.knifeAttack=null;
+}
+function stabKnife(){
+ if(!S||S.dead||paused||S.between||activeWeapon())return;
+ const p=S.p,state=getCombatVisuals();
+ if(p.shot>0||state.time<(state.knifeReadyAt||0))return;
+ p.reload=0;
+ p.shot=KNIFE.cooldown;
+ state.knifeReadyAt=state.time+KNIFE.cooldown;
+ state.knifeAttack={
+  born:state.time,slot:p.slot,direction:{x:aim.x,y:aim.y},resolved:false
+ };
+ playWav("knife_swing",{volume:.8});
+}
+function updateKnifeAttack(state){
+ const attack=state.knifeAttack;
+ if(!attack)return;
+ if(S.dead||S.p.hp<=0||S.p.slot!==attack.slot||activeWeapon()){
+  state.knifeAttack=null;
+  return;
+ }
+ const age=state.time-attack.born;
+ if(!attack.resolved&&age>=KNIFE.hitTime){
+  attack.resolved=true;
+  const target=selectKnifeTarget(S.p,attack.direction,S.enemies,knifeLineClear);
+  if(target){
+   hitEnemy(target,KNIFE.damage,0,attack.direction);
+   playWav("knife_hit",{volume:.9});
+  }
+ }
+ if(age>=KNIFE.duration)state.knifeAttack=null;
+}
+function drawPlayerKnife(actor){
+ const state=getCombatVisuals(),attack=state.knifeAttack;
+ const attacking=attack&&attack.slot===S.p.slot;
+ const direction=attacking?attack.direction:aim;
+ const age=attacking?Math.max(0,state.time-attack.born):KNIFE.duration;
+ const thrust=age<KNIFE.hitTime?age/KNIFE.hitTime:
+  clamp(1-(age-KNIFE.hitTime)/(KNIFE.duration-KNIFE.hitTime),0,1);
+ const sx=(direction.x-direction.y)*32,sy=(direction.x+direction.y)*16;
+ const length=Math.hypot(sx,sy)||1,gx=sx/length,gy=sy/length;
+ const hx=4+gx*(5+thrust*18),hy=-22+gy*(5+thrust*18);
+ ctx.save();
+ ctx.lineCap="round";
+ ctx.strokeStyle="#302a23";ctx.lineWidth=7;
+ ctx.beginPath();ctx.moveTo(6,-25);ctx.lineTo(hx,hy);ctx.stroke();
+ ctx.strokeStyle="#b7975c";ctx.lineWidth=4;ctx.stroke();
+ ellipse(hx,hy,3,3,"#c5ad7b");
+ ctx.translate(hx,hy);
+ ctx.rotate(Math.atan2(gy,gx));
+ ctx.scale(.8,.8);
+ ctx.lineWidth=1.5;ctx.lineJoin="round";ctx.strokeStyle="#292c28";
+ const colors=["#70523b","#8c927d","#d2ddd9"];
+ for(let i=0;i<knifePaths.length;i++){
+  ctx.fillStyle=colors[i];
+  ctx.fill(knifePaths[i]);ctx.stroke(knifePaths[i]);
+ }
+ ctx.restore();
+}
 function shoot(){
+ if(!S||paused||S.dead||S.between)return;
  const p=S.p,w=activeWeapon();
-if (p.reload > 0 || p.shot > 0) return;
+ if(!w){stabKnife();return}
+ if (p.reload > 0 || p.shot > 0) return;
  if(w.ammo<=0){reload();return}
  w.ammo--;p.shot=1/w.rate;
  boostEnemyDetectionFromShot();
@@ -2182,6 +2533,7 @@ function updateCombatVisuals(dt){
  const state=getCombatVisuals();
  if(!state)return;
  state.time+=dt;
+ updateKnifeAttack(state);
  let blastWrite=0;
  for(const blast of state.explosions){
   if(state.time-blast.born<blast.duration){
@@ -2403,6 +2755,7 @@ function drawHealingStatus(){
 function drawReloadProgress(){
  if(!S||S.dead||!(S.p.reload>0))return;
  const p=S.p,w=activeWeapon(),state=getCombatVisuals();
+ if(!w)return;
  const tracked=state.reloads.get(p);
  const total=tracked?.weapon===w?tracked.total:w.reload*Math.pow(.85,S.up.reload||0);
  if(!Number.isFinite(total)||total<=0)return;
@@ -2480,7 +2833,7 @@ function killEnemy(e){
  emitEnemyBreakup(e);
  // Выпадает тот же экземпляр: характеристики, отделка и остаток патронов.
  S.loot.push({x:e.x,y:e.y,w:equipEnemy(e)});
- if(Math.random()<.4)for(const w of S.p.weapons)w.reserve+=Math.ceil(w.mag*.5);
+ if(Math.random()<.4)for(const w of S.p.weapons)if(w)w.reserve+=Math.ceil(w.mag*.5);
  if(Math.random()<CFG.medkitChance){
   S.medkits.push({x:e.x,y:e.y});
  }
@@ -2944,8 +3297,10 @@ function update(dt,realDt=dt){
 
   if (p.reload === 0) {
     const w = activeWeapon();
-    refill(w, w.mag);
-    playWav("reload_end",{volume:.9,rate:w.ci===6?.85:1});
+    if(w){
+     refill(w, w.mag);
+     playWav("reload_end",{volume:.9,rate:w.ci===6?.85:1});
+    }
   }
 }
  let sx=(keys.KeyD?1:0)-(keys.KeyA?1:0),sy=(keys.KeyS?1:0)-(keys.KeyW?1:0);
@@ -2996,9 +3351,10 @@ function nearest(){
    text:`E — аптечка: +${CFG.medkitHP} HP за ${CFG.medkitSeconds} с`
   };
  }
- const loot=S.loot.find(o=>dist(o,p)<1.1);if(loot)return {kind:"loot",obj:loot,text:"E — сравнить найденное оружие"};
  const shop=S.map.shops.find(o=>dist(o,p)<1.5);if(shop)return {kind:"shop",obj:shop,text:"E — "+(shop.kind==="weapons"?"оружейный магазин":"улучшения героя")};
  if(dist(p,S.map.exit)<1.4)return {kind:"exit",text:S.enemies.some(e=>e.boss)?"Портал закрыт: победите Дискоядро":"E — перейти в безопасный магазин"};
+ const loot=S.loot.find(o=>o.w&&dist(o,p)<=INVENTORY_RADIUS);
+ if(loot)return {kind:"loot",obj:loot,text:"E — На полу · оружие в радиусе 5 м · Tab — инвентарь"};
  return null;
 }
 function interact(){
@@ -3020,6 +3376,7 @@ function interact(){
  }
 }
 function stats(w, reference) {
+  if(!w)return knifeStats();
   const rarity = RARITY[w.rare];
   const weaponClass = CLASSES[w.ci];
 
@@ -3233,10 +3590,10 @@ function mountWeaponSlotPicker(redraw){
   button.type="button";
   button.dataset.weaponSlot=String(slot);
   button.setAttribute("aria-pressed",String(selected));
-  button.textContent=`${selected?"✓ ":""}Слот ${slot+1} — ${w.name}`;
+  button.textContent=`${selected?"✓ ":""}Слот ${slot+1} — ${w?w.name:"Нож"}`;
   button.onclick=()=>{
    if(!S||S.dead||!paused||S.p!==player||
-      !content.contains(button)||!player.weapons[slot])return;
+      !content.contains(button))return;
    if(player.slot===slot)return;
 
    player.slot=slot;
@@ -3254,29 +3611,329 @@ function mountWeaponSlotPicker(redraw){
  if(heading)heading.after(picker);
  else content.prepend(picker);
 }
+const INVENTORY_RADIUS=5;
+
+function transferFloorWeapon(state,item,slot){
+ if(!state||state.dead||(slot!==0&&slot!==1)||!item?.w||
+    !Number.isFinite(dist(item,state.p))||dist(item,state.p)>INVENTORY_RADIUS)return false;
+ const index=state.loot.indexOf(item);
+ if(index<0||state.p.weapons.includes(item.w))return false;
+ const old=state.p.weapons[slot];
+ state.loot.splice(index,1);
+ if(old)state.loot.push({x:state.p.x,y:state.p.y,w:old});
+ state.p.weapons[slot]=item.w;
+ state.p.reload=0;
+ state.p.shot=Math.max(state.p.shot||0,.15);
+ return true;
+}
+
+function dropHandWeapon(state,slot){
+ if(!state||state.dead||(slot!==0&&slot!==1))return false;
+ const w=state.p.weapons[slot];
+ if(!w)return false;
+ state.loot.push({x:state.p.x,y:state.p.y,w});
+ state.p.weapons[slot]=null;
+ state.p.reload=0;
+ state.p.shot=Math.max(state.p.shot||0,.15);
+ return true;
+}
+
 function lootWindow(obj){
- show(`<h2>Найденное оружие</h2><div class="row">
- <div class="card"><span class="tag">Ваш активный слот</span>${stats(activeWeapon(), obj.w)}</div>
- <div class="card"><span class="tag">На земле · изменения относительно вашего</span>${stats(obj.w,activeWeapon())}</div>
- </div><p class="small">
-  Зелёный + — преимущество этой карточки.
-  Красный − — недостаток.
-  Серый = — одинаково.
-  Величина рядом со знаком показывает размер отличия, а не прибавку к оружию.
-</p>
- <div class="actions"><button id="take">Заменить слот ${S.p.slot+1}</button><button id="leave">Оставить</button></div>`);
- mountWeaponSlotPicker(()=>lootWindow(obj));
- on("take",()=>{
-  const old=activeWeapon();S.p.weapons[S.p.slot]=obj.w;obj.w=old;
-  S.p.reload=0;collect(activeWeapon());save();closeModal();beep(650,.1);
- });
- on("leave",closeModal);
+ inventoryWindow();
+}
+
+function inventoryWindow(sh=null){
+ if(!S||S.dead||S.between)return;
+ if(sh&&(!S.map.shops.includes(sh)||sh.kind!=="weapons"||dist(sh,S.p)>=1.5))return;
+ const owner=S,player=S.p,map=S.map;
+ const floor=owner.loot.filter(item=>item?.w&&dist(item,player)<=INVENTORY_RADIUS)
+  .sort((a,b)=>dist(a,player)-dist(b,player));
+ show(`<div id="inventoryRoot">
+  <header class="inventory-heading">
+   <h1>Персонаж</h1>
+   <button id="inventoryClose" type="button">Вернуться</button>
+  </header>
+  <p><b>Деньги: ${owner.money} ¤</b> · Активный слот: ${player.slot+1}</p>
+  <p class="small">Клик по руке — выбрать активный слот для сравнения.
+   Наведение или клик по оружию — характеристики и действия.
+   Перетащите оружие на руку или в раздел «На полу».</p>
+  <div class="inventory-layout">
+   <section aria-label="Персонаж и оружейные слоты">
+    <div class="inventory-character">
+     <div id="inventoryHand0" class="inventory-hand"></div>
+     <svg class="inventory-avatar" viewBox="0 0 100 250" role="img" aria-label="Главный герой">
+      <ellipse cx="50" cy="235" rx="33" ry="8" fill="#302a2448"/>
+      <g stroke="#302a23" stroke-width="3" stroke-linejoin="round">
+       <path d="M36 160L30 225H43L49 171L55 225H69L62 160Z" fill="#645c46"/>
+       <path d="M28 225H44V236H23ZM54 225H70L77 236H54Z" fill="#302d25"/>
+       <path d="M27 87L16 147L24 154L37 106M73 87L84 147L76 154L63 106" fill="#b7975c"/>
+       <path d="M32 82H68L76 168H24Z" fill="#b7975c"/>
+       <path d="M38 90H62V135H38Z" fill="#514b3b"/>
+       <path d="M33 91L65 147" fill="none" stroke="#c5ae7c" stroke-width="6"/>
+       <ellipse cx="50" cy="62" rx="18" ry="23" fill="#c5ad7b"/>
+       <path d="M34 58H66V68H34Z" fill="#688a8b"/>
+       <path d="M27 45H73M35 45V29H65V45" fill="#695940" stroke-width="5"/>
+       <ellipse cx="20" cy="153" rx="6" ry="8" fill="#c5ad7b"/>
+       <ellipse cx="80" cy="153" rx="6" ry="8" fill="#c5ad7b"/>
+      </g>
+     </svg>
+     <div id="inventoryHand1" class="inventory-hand"></div>
+    </div>
+   </section>
+   <section id="inventoryFloor" class="inventory-floor" aria-label="Оружие на полу">
+    <h2>На полу</h2>
+    <p class="small">Радиус ${INVENTORY_RADIUS} м · Предметов: ${floor.length}.
+     Через стены подобрать нельзя.</p>
+    <div id="inventoryFloorList" class="inventory-list"></div>
+   </section>
+  </div>
+  ${sh?`<section class="inventory-shop"><h2>Арсенал</h2>
+   <p class="small">Перенос товара в руку — покупка по указанной цене.
+    Прежнее оружие окажется на полу. Выбрасывание не продаёт оружие.</p>
+   <div id="inventoryShopList" class="inventory-list"></div></section>`:""}
+  <div id="inventoryTooltip" class="inventory-tooltip panel" role="dialog"
+   aria-label="Характеристики и действия с оружием" tabindex="-1" hidden></div>
+ </div>`);
+ const root=$("#inventoryRoot"),tip=$("#inventoryTooltip");
+ let hideTimer=0,dragged=null;
+ const isOpen=()=>S===owner&&!owner.dead&&!owner.between&&paused&&
+  owner.p===player&&owner.map===map&&root.isConnected&&
+  !$("#modal").classList.contains("hidden");
+ const validEntry=entry=>{
+  if(!isOpen())return false;
+  if(entry.kind==="hand")return (entry.slot===0||entry.slot===1)&&
+   player.weapons[entry.slot]===entry.w;
+  if(entry.kind==="floor")return owner.loot.includes(entry.item)&&
+   entry.item.w===entry.w&&dist(entry.item,player)<=INVENTORY_RADIUS;
+  return entry.kind==="shop"&&sh&&map.shops.includes(sh)&&
+   dist(sh,player)<1.5&&sh.items.includes(entry.w);
+ };
+ const stopHide=()=>{clearTimeout(hideTimer);hideTimer=0};
+ const hideTip=()=>{stopHide();tip.hidden=true};
+ const scheduleHide=()=>{
+  stopHide();
+  hideTimer=setTimeout(()=>{
+   if(!tip.contains(document.activeElement))tip.hidden=true;
+  },220);
+ };
+ const redraw=(focusId=null)=>{
+  inventoryWindow(sh);
+  if(focusId)document.getElementById(focusId)?.focus({preventScroll:true});
+ };
+ const finish=(w,focusId)=>{
+  if(w)collect(w);
+  save();
+  redraw(focusId);
+ };
+ const dropSlot=slot=>{
+  if(!isOpen()||!dropHandWeapon(owner,slot))return;
+  finish(null,"inventorySelect"+slot);
+ };
+ const equip=(entry,slot)=>{
+  if((slot!==0&&slot!==1)||!validEntry(entry))return;
+  if(entry.kind==="floor"){
+   if(!lineClear(player,entry.item)){
+    toast("Оружие за препятствием");
+    return;
+   }
+   if(transferFloorWeapon(owner,entry.item,slot)){
+    finish(entry.w,"inventorySelect"+slot);
+   }
+  }else if(entry.kind==="shop"){
+   const w=entry.w,index=sh.items.indexOf(w);
+   if(index<0||player.weapons.includes(w)||!Number.isFinite(w.price)||w.price<0)return;
+   if(!buy(w.price,()=>{
+    const old=player.weapons[slot];
+    if(old)owner.loot.push({x:player.x,y:player.y,w:old});
+    player.weapons[slot]=w;
+    player.reload=0;
+    player.shot=Math.max(player.shot||0,.15);
+    sh.items.splice(index,1);
+    collect(w);
+   }))return;
+   redraw("inventorySelect"+slot);
+  }
+ };
+ const button=(parent,label,action,disabled=false)=>{
+  const el=document.createElement("button");
+  el.type="button";
+  el.textContent=label;
+  el.disabled=disabled;
+  el.onclick=action;
+  parent.appendChild(el);
+  return el;
+ };
+ const inspect=(entry,x,y)=>{
+  if(!validEntry(entry))return;
+  stopHide();
+  tip.replaceChildren();
+  const actions=document.createElement("div");
+  actions.className="inventory-tooltip-actions";
+  tip.appendChild(actions);
+  if(entry.kind==="hand"){
+   button(actions,"Выкинуть",()=>{
+    if(validEntry(entry))dropSlot(entry.slot);
+   },!entry.w);
+  }else{
+   const blocked=entry.kind==="floor"&&!lineClear(player,entry.item);
+   for(const slot of [0,1]){
+    button(actions,entry.kind==="shop"
+     ?`Купить в слот ${slot+1} · ${entry.w.price} ¤`
+     :`В слот ${slot+1}`,()=>equip(entry,slot),
+     blocked||(entry.kind==="shop"&&owner.money<entry.w.price));
+   }
+  }
+  button(actions,"Закрыть",hideTip);
+  const comparison=document.createElement("p");
+  comparison.className="small";
+  const reference=player.weapons[player.slot];
+  comparison.textContent=reference
+   ?`Сравнение с активным слотом ${player.slot+1}: ${reference.name}`
+   :`В активном слоте ${player.slot+1} — нож: ${KNIFE.damage} HP, ближний бой. Сравнение огнестрельных характеристик недоступно.`;
+  tip.appendChild(comparison);
+  const details=document.createElement("div");
+  details.innerHTML=stats(entry.w,reference);
+  tip.appendChild(details);
+  const ammo=document.createElement("p");
+  ammo.className="small";
+  ammo.textContent=entry.w
+   ?`Патроны: ${entry.w.ammo}/${entry.w.mag} · Запас: ${entry.w.reserve}`
+   :"Нож не требует патронов и перезарядки.";
+  tip.appendChild(ammo);
+  tip.hidden=false;
+  tip.scrollTop=0;
+  tip.style.left="8px";
+  tip.style.top="8px";
+  const width=tip.offsetWidth,height=tip.offsetHeight;
+  const left=x+14+width<=innerWidth-8?x+14:x-width-14;
+  tip.style.left=clamp(left,8,Math.max(8,innerWidth-width-8))+"px";
+  tip.style.top=clamp(y+14,8,Math.max(8,innerHeight-height-8))+"px";
+ };
+ const attach=(el,entry)=>{
+  el.onpointerenter=e=>inspect(entry,e.clientX,e.clientY);
+  el.onpointerleave=scheduleHide;
+  el.onfocus=()=>{
+   const rect=el.getBoundingClientRect();
+   inspect(entry,rect.right,rect.top);
+  };
+  el.onblur=()=>{if(!tip.contains(document.activeElement))scheduleHide()};
+  el.draggable=Boolean(entry.w);
+  el.ondragstart=e=>{
+   if(!entry.w||!validEntry(entry)||!e.dataTransfer){e.preventDefault();return}
+   dragged=entry;
+   hideTip();
+   e.dataTransfer.effectAllowed="move";
+   e.dataTransfer.setData("text/plain","inventory-weapon");
+  };
+  el.ondragend=()=>{dragged=null};
+ };
+ const itemButton=(parent,w,label)=>{
+  const el=button(parent,"",()=>{});
+  el.className="inventory-item";
+  if(w){
+   el.innerHTML=weaponPreview(w);
+   const name=document.createElement("strong");
+   name.textContent=w.name;
+   name.style.color=RARITY[w.rare].color;
+   el.appendChild(name);
+  }else{
+   el.innerHTML=knifePreview();
+   const name=document.createElement("strong");
+   name.textContent="Нож";
+   el.appendChild(name);
+  }
+  const caption=document.createElement("div");
+  caption.className="small";
+  caption.textContent=label;
+  el.appendChild(caption);
+  return el;
+ };
+ for(const slot of [0,1]){
+  const hand=document.getElementById("inventoryHand"+slot),w=player.weapons[slot];
+  const el=itemButton(hand,w,`Слот ${slot+1}`);
+  el.id="inventorySelect"+slot;
+  el.setAttribute("aria-pressed",String(player.slot===slot));
+  attach(el,{kind:"hand",slot,w});
+  el.onclick=()=>{
+   if(!isOpen())return;
+   if(player.slot!==slot){
+    player.slot=slot;
+    player.reload=0;
+    player.shot=Math.max(player.shot||0,.15);
+    save();
+    redraw("inventorySelect"+slot);
+   }else{
+    const rect=el.getBoundingClientRect();
+    inspect({kind:"hand",slot,w},rect.right,rect.top);
+   }
+  };
+  button(hand,"Выкинуть",()=>dropSlot(slot),!w);
+  hand.ondragover=e=>{
+   if(dragged&&dragged.kind!=="hand"&&validEntry(dragged)){
+    e.preventDefault();
+    if(e.dataTransfer)e.dataTransfer.dropEffect="move";
+   }
+  };
+  hand.ondrop=e=>{
+   e.preventDefault();
+   const entry=dragged;
+   dragged=null;
+   if(entry)equip(entry,slot);
+  };
+ }
+ const floorList=$("#inventoryFloorList");
+ if(!floor.length)floorList.textContent="Рядом нет оружия. Сюда можно выкинуть оружие из рук.";
+ for(const item of floor){
+  const entry={kind:"floor",item,w:item.w};
+  const el=itemButton(floorList,item.w,`${dist(item,player).toFixed(1)} м${
+   lineClear(player,item)?"":" · За препятствием"}`);
+  attach(el,entry);
+  el.onclick=e=>inspect(entry,e.clientX||el.getBoundingClientRect().right,
+   e.clientY||el.getBoundingClientRect().top);
+ }
+ const floorZone=$("#inventoryFloor");
+ floorZone.ondragover=e=>{
+  if(dragged?.kind==="hand"&&validEntry(dragged)){
+   e.preventDefault();
+   if(e.dataTransfer)e.dataTransfer.dropEffect="move";
+  }
+ };
+ floorZone.ondrop=e=>{
+  e.preventDefault();
+  const entry=dragged;
+  dragged=null;
+  if(entry?.kind==="hand"&&validEntry(entry))dropSlot(entry.slot);
+ };
+ if(sh){
+  const shopList=$("#inventoryShopList");
+  if(!sh.items.length)shopList.textContent="Всё распродано.";
+  for(const w of sh.items){
+   const entry={kind:"shop",w};
+   const el=itemButton(shopList,w,`${RARITY[w.rare].name} · ${w.price} ¤`);
+   attach(el,entry);
+   el.onclick=e=>inspect(entry,e.clientX||el.getBoundingClientRect().right,
+    e.clientY||el.getBoundingClientRect().top);
+  }
+ }
+ tip.onpointerenter=stopHide;
+ tip.onpointerleave=scheduleHide;
+ tip.onfocusin=stopHide;
+ tip.onfocusout=scheduleHide;
+ const onScroll=e=>{if(!tip.contains(e.target))hideTip()};
+ root.addEventListener("scroll",onScroll,true);
+ addEventListener("resize",hideTip);
+ inventoryCleanup=()=>{
+  hideTip();
+  dragged=null;
+  removeEventListener("resize",hideTip);
+  root.removeEventListener("scroll",onScroll,true);
+ };
+ on("inventoryClose",closeModal);
 }
 function buy(cost,action){
  if(S.money<cost){toast("Не хватает кредитов");beep(100);return false}
  S.money-=cost;action();save();beep(680,.08);return true;
 }
-const weaponShopSelections=new WeakMap();
 function weaponShopWindow(sh){
  // Старый непустой магазин дополняется один раз, без замены его товаров.
  if(sh.stockVersion!==1){
@@ -3293,81 +3950,7 @@ function weaponShopWindow(sh){
   sh.stockVersion=1;
   save();
  }
- const owner=S,player=S.p,current=activeWeapon();
- const index=clamp(weaponShopSelections.get(sh)||0,0,Math.max(0,sh.items.length-1));
- weaponShopSelections.set(sh,index);
- const offer=sh.items[index];
- show(`<div class="weapon-shop">
-  <header class="shop-heading">
-   <h2>Арсенал · ${S.money} ¤</h2>
-   <button id="back">Вернуться</button>
-  </header>
-  <div id="shopSlots"></div>
-  <section class="shop-equipped" aria-label="Активное оружие">
-   ${weaponPreview(current)}
-   <div>
-    <div class="small"><b>В РУКАХ · СЛОТ ${player.slot+1} · заменяется при покупке</b></div>
-    <h3 style="color:${RARITY[current.rare].color}">${current.name}</h3>
-    <div class="small">${CLASSES[current.ci].name} · ${current.ammo}/${current.mag} · запас ${current.reserve}</div>
-    <div class="small shop-equipped-extra">Урон ${current.damage} × ${current.pellets} · ${current.rate.toFixed(1)} выстр./с · перезарядка ${current.reload.toFixed(2)} с</div>
-   </div>
-  </section>
-  <div class="shop-comparison" tabindex="0" role="region" aria-label="Характеристики оружия: прокрутка">
-   <div class="shop-comparison-grid">
-    <article class="card shop-current">
-     <span class="tag">Ваше · слот ${player.slot+1}</span>
-     ${stats(current,offer)}
-    </article>
-    <article class="card shop-offer">
-     <nav class="shop-navigation" aria-label="Выбор покупного оружия">
-      <div class="shop-arrow-row">
-       <button id="shopPrev" type="button" aria-label="Предыдущее оружие" ${sh.items.length<2?"disabled":""}>←</button>
-       <span aria-live="polite">${offer?`Товар ${index+1} / ${sh.items.length}`:"Всё распродано"}</span>
-       <button id="shopNext" type="button" aria-label="Следующее оружие" ${sh.items.length<2?"disabled":""}>→</button>
-      </div>
-      ${offer?`<button id="shopBuy" type="button" class="shop-purchase" ${S.money<offer.price?"disabled":""}>Купить · ${offer.price} ¤ · слот ${player.slot+1}</button>`:""}
-     </nav>
-     <span class="tag">Покупное · сравнение с вашим</span>
-     ${offer?stats(offer,current):"<p>Новых товаров нет. Ваше оружие остаётся в активном слоте.</p>"}
-    </article>
-   </div>
-  </div>
- </div>`);
- const content=$("#content");
- content.querySelector(".shop-equipped")?.remove();
- content.classList.add("weapon-shop-window");
- content.scrollTop=0;
- mountWeaponSlotPicker(()=>weaponShopWindow(sh));
- const picker=content.querySelector(".weapon-slot-picker");
- if(picker)$("#shopSlots").appendChild(picker);
-
- const isOpen=()=>S===owner&&!S.dead&&paused&&S.p===player&&
-  content.classList.contains("weapon-shop-window");
- const navigate=(direction,focusId)=>{
-  if(!isOpen()||sh.items.length<2)return;
-  weaponShopSelections.set(sh,(index+direction+sh.items.length)%sh.items.length);
-  weaponShopWindow(sh);
-  document.getElementById(focusId)?.focus({preventScroll:true});
- };
- on("shopPrev",()=>navigate(-1,"shopPrev"));
- on("shopNext",()=>navigate(1,"shopNext"));
- const purchase=document.getElementById("shopBuy");
- if(purchase)purchase.onclick=()=>{
-  // Повторный вызов старой кнопки не может купить уже удалённый товар.
-  if(!purchase.isConnected||!isOpen()||activeWeapon()!==current||
-     !offer||sh.items[index]!==offer)return;
-  purchase.disabled=true;
-  buy(offer.price,()=>{
-   S.loot.push({x:sh.x,y:sh.y,w:current});
-   player.weapons[player.slot]=offer;
-   player.reload=0;
-   collect(offer);
-   sh.items.splice(index,1);
-  });
-  weaponShopWindow(sh);
-  document.getElementById("shopBuy")?.focus({preventScroll:true});
- };
- on("back",closeModal);
+ inventoryWindow(sh);
 }
 function shopWindow(sh){
  if(sh.kind==="weapons"){weaponShopWindow(sh);return}
@@ -3428,7 +4011,7 @@ function betweenWindow(){
  <div class="actions"><button id="next">Следующая локация →</button><button id="saveMenu">Сохранить и выйти</button></div>`);
  on("heal",()=>{buy(CFG.healPrice,()=>p.hp=Math.min(p.max,p.hp+45));betweenWindow()});
  on("armor",()=>{buy(CFG.armorPrice,()=>p.armor=p.maxArmor);betweenWindow()});
- on("ammo",()=>{buy(CFG.ammoPrice,()=>p.weapons.forEach(w=>{w.reserve=Math.max(w.reserve,w.mag*7)}));betweenWindow()});
+ on("ammo",()=>{buy(CFG.ammoPrice,()=>p.weapons.forEach(w=>{if(w)w.reserve=Math.max(w.reserve,w.mag*7)}));betweenWindow()});
  on("case",()=>{
   buy(caseCost,()=>{
    const w=weapon(hash(S.seed+":case:"+((S.caseCount||0)+1)),S.level+1,S.pity>=3?2:0);
@@ -3510,7 +4093,7 @@ function drawActor(a,player=false){
    ellipse(pos.x,pos.y-28,t?.shape===2?7:11,9,color);
   }
   ctx.fillStyle=player?"#5adffa":"#352656";ctx.fillRect(pos.x-7,pos.y-31,14,5);
-  if(player){
+  if(player&&activeWeapon()){
    const w=activeWeapon(),v=project(a.x+aim.x*.5,a.y+aim.y*.5);
    ctx.strokeStyle=MAKERS[w.mi].color;ctx.lineWidth=5;
    ctx.beginPath();ctx.moveTo(pos.x,pos.y-16);
@@ -3654,10 +4237,15 @@ function drawHUD(){
  const runHTML=`<b>ПЫЛЬНЫЙ ТРАКТ / ${S.level} — ${S.map.layout?.name||THEMES[S.theme].name} · ${THEMES[S.theme].name}</b>
  <div class="small">Seed забега: ${S.seed} · карты: ${S.map.seed}</div>`;
  if(runHTML!==lastRunHUD){$("#hud").innerHTML=runHTML;lastRunHUD=runHTML}
- const html=`<div class="armor-cells" role="img" aria-label="Бронежилет: ${p.armor} из 10 ячеек" title="Одна ячейка полностью поглощает одно попадание">${Array.from({length:10},(_,i)=>`<i class="${i<p.armor?"":"empty"}"></i>`).join("")}</div>
+ const html=`<div class="hero-meters">
+ <span class="hero-meter-label">БРОНЯ</span>
+ <div class="armor-cells" role="img" aria-label="Бронежилет: ${p.armor} из 10 ячеек" title="Одна ячейка полностью поглощает одно попадание">${Array.from({length:10},(_,i)=>`<i class="${i<p.armor?"":"empty"}"></i>`).join("")}</div>
+ <span class="hero-meter-label">ЗДОРОВЬЕ</span>
  <div class="bar hp-bar" title="Здоровье"><i style="width:${clamp(p.hp/p.max*100,0,100)}%"></i></div>
- <div class="bar" title="Стамина: Shift + движение — бег"><i style="width:${clamp(p.stamina/staminaStats(S.up).max*100,0,100).toFixed(1)}%;background:${p.exhausted?"#b36a3b":"#83964d"}"></i></div>
- <div class="hero-values"><span>Броня ${p.armor}/10</span><span>${Math.ceil(p.hp)}/${p.max} HP</span><span>${Math.ceil(p.stamina)}/${staminaStats(S.up).max} STA</span><b>${S.money} ¤</b></div>
+ <span class="hero-meter-label">ВЫНОСЛИВОСТЬ</span>
+ <div class="bar" title="Выносливость: Shift + движение — бег"><i style="width:${clamp(p.stamina/staminaStats(S.up).max*100,0,100).toFixed(1)}%;background:${p.exhausted?"#b36a3b":"#83964d"}"></i></div>
+ </div>
+ <div class="hero-values"><b>Деньги: ${S.money} ¤</b></div>
  <div>${p.exhausted?"Истощение: восстановите 25% STA и отпустите Shift":p.sprinting&&!paused?"Бег":`Бег: ${(p.stamina/staminaStats(S.up).drain).toFixed(1)} с · Shift`}</div>
  <div class="small hero-upgrades">${up||"Улучшений пока нет"}</div>`;
  const playerHUD=document.getElementById("playerHUD");
@@ -3667,16 +4255,20 @@ function drawHUD(){
  if(!ammoHUD.hidden){
   if(ammoPreviewWeapon!==w){
    ammoPreviewWeapon=w;
-   ammoPreviewHTML=weaponPreview(w);
+   ammoPreviewHTML=w?weaponPreview(w):"";
   }
-  const ammoHTML=`<div class="ammo-weapon">${ammoPreviewHTML}<span style="color:${RARITY[w.rare].color}">${w.name}<br>${CLASSES[w.ci].name}<br>${RARITY[w.rare].name}</span></div>
+  const ammoHTML=w?`<div class="ammo-weapon">${ammoPreviewHTML}<span style="color:${RARITY[w.rare].color}">${w.name}<br>${CLASSES[w.ci].name}<br>${RARITY[w.rare].name}</span></div>
    <div class="ammo-label">Слот ${p.slot+1} · в магазине</div>
    <div class="ammo-loaded${w.ammo===0?" ammo-empty":""}">${w.ammo}<span class="ammo-capacity"> / ${w.mag}</span></div>
    <div class="ammo-reserve"><span class="ammo-label">Запас</span> ${w.reserve}</div>
-   <div class="ammo-status">${p.reload>0?"Перезарядка · "+p.reload.toFixed(1)+" с":w.ammo===0?(w.reserve>0?"R — перезарядить":"Нет патронов"):w.ammo<w.mag&&w.reserve>0?"R — перезарядить":"Готово к стрельбе"}</div>`;
+   <div class="ammo-status">${p.reload>0?"Перезарядка · "+p.reload.toFixed(1)+" с":w.ammo===0?(w.reserve>0?"R — перезарядить":"Нет патронов"):w.ammo<w.mag&&w.reserve>0?"R — перезарядить":"Готово к стрельбе"}</div>`:
+   `<div class="ammo-weapon">${knifePreview()}<span>Нож<br>Холодное оружие</span></div>
+   <div class="ammo-label">Слот ${p.slot+1} · урон ${KNIFE.damage} HP</div>
+   <div class="ammo-status">ЛКМ — укол · ${KNIFE.range.toLocaleString("ru-RU")} м</div>
+   <div class="small">Tab — инвентарь · Q — другой слот</div>`;
   if(ammoHTML!==lastAmmoHUD){ammoHUD.innerHTML=ammoHTML;lastAmmoHUD=ammoHTML}
  }
- $("#hint").textContent=nearest()?.text||"WASD · Shift — бег · ЛКМ · R · Q · E · Esc";
+ $("#hint").textContent=nearest()?.text||"WASD · Shift — бег · ЛКМ · R · Q · E · Tab — инвентарь · Esc";
 }
 function pauseWindow(){
  if(!S||S.dead){menu();return}
@@ -3931,7 +4523,71 @@ function testBulletDrops(){
  check("Пауза и некорректное время не меняют эффект",JSON.stringify(idle)===before);
  return results;
 }
+function testInventoryTransfers(){
+ const results=[];
+ const check=(name,ok)=>results.push({name,ok:Boolean(ok)});
+ const first=weapon(101,1),second=weapon(102,1),found=weapon(103,1);
+ first.ammo=1;
+ first.reserve=3;
+ const item={x:3,y:4,w:found};
+ const state={
+  dead:false,loot:[item],
+  p:{x:0,y:0,slot:0,weapons:[first,second],reload:1,shot:0}
+ };
+ check("Подбор ровно в радиусе 5 м",
+  transferFloorWeapon(state,item,0)&&state.p.weapons[0]===found);
+ check("Прежнее оружие лежит у ног без потери патронов",
+  state.loot.length===1&&state.loot[0].w===first&&
+  state.loot[0].x===0&&state.loot[0].y===0&&first.ammo===1&&first.reserve===3);
+ check("Повторный подбор того же предмета запрещён",
+  !transferFloorWeapon(state,item,1)&&state.p.weapons[1]===second);
+ check("Смена оружия отменяет перезарядку",state.p.reload===0);
+ const far={x:5.01,y:0,w:weapon(104,1)};
+ state.loot.push(far);
+ check("За пределами 5 м подбор запрещён",!transferFloorWeapon(state,far,0));
+ check("Можно освободить обе руки",
+  dropHandWeapon(state,0)&&dropHandWeapon(state,1)&&
+  state.p.weapons.every(w=>w===null));
+ const count=state.loot.length;
+ check("Повторное выбрасывание не создаёт дубликат",
+  !dropHandWeapon(state,0)&&state.loot.length===count);
+ const restored=JSON.parse(JSON.stringify(state));
+ check("Два пустых слота сохраняются в JSON",
+  restored.p.weapons.length===2&&restored.p.weapons.every(w=>w===null));
+ const nearby=restored.loot.find(o=>dist(o,restored.p)<=INVENTORY_RADIUS);
+ check("После загрузки можно снова вооружиться",
+  transferFloorWeapon(restored,nearby,1)&&restored.p.weapons[1]===nearby.w);
+ check("Несуществующий слот отклоняется",!dropHandWeapon(restored,2));
+ return results;
+}
+function testKnife(){
+ const results=[],hero={x:0,y:0},direction={x:1,y:0};
+ const check=(name,ok)=>results.push({name,ok:Boolean(ok)});
+ const enemy=(x,y,hp=100)=>({x,y,hp});
+ const front=enemy(.8,0),back=enemy(-.4,0),side=enemy(0,.5);
+ const choose=(enemies,clear=()=>true)=>
+  selectKnifeTarget(hero,direction,enemies,clear);
+ check("Урон ножа — ровно 50 HP",KNIFE.damage===50);
+ check("Цель впереди доступна",choose([front])===front);
+ check("Сзади и сбоку укол не попадает",choose([back,side])===null);
+ const edge=enemy(KNIFE.range,0);
+ check("Граница дальности включена",choose([edge])===edge);
+ check("За пределами дальности промах",
+  choose([enemy(KNIFE.range+.001,0)])===null);
+ check("Стена блокирует укол",choose([front],()=>false)===null);
+ const near=enemy(.4,0);
+ check("Выбирается только ближайший живой NPC",
+  choose([front,enemy(.2,0,0),near])===near);
+ check("Мёртвые цели пропускаются",choose([enemy(.2,0,0)])===null);
+ check("Некорректное направление отклоняется",
+  selectKnifeTarget(hero,{x:0,y:0},[front],()=>true)===null);
+ check("Попадание внутри анимации, интервал длиннее выпада",
+  KNIFE.hitTime>0&&KNIFE.hitTime<KNIFE.duration&&KNIFE.duration<KNIFE.cooldown);
+ return results;
+}
 function runTests(){
+ const knifeChecks=testKnife();
+ const inventoryChecks=testInventoryTransfers();
  const bulletDropChecks=testBulletDrops();
  const armorWeaponChecks=testArmorAndNPCWeapons();
  const medkitChecks=testMedkits();
@@ -4082,6 +4738,10 @@ function runTests(){
  <p>Совместимость старого расчёта темпа без оружия; бонус быстрых NPC ×1,3: ${npcTimingOK?"OK":"ОШИБКА"}</p>
  <p>Радиус обнаружения 11,7, движение +70% и ускорение стрельбы босса: ${npcBoostOK?"OK":"ОШИБКА"}</p>
  <p>Шесть разных ролей в составе уровня на 100 seeds: ${npcRosterOK?"OK":"ОШИБКА"}</p>
+ <h3>Нож</h3>
+ ${knifeChecks.map(t=>`<p class="small">${t.ok?"OK":"ОШИБКА"} — ${t.name}</p>`).join("")}
+ <h3>Инвентарь</h3>
+ ${inventoryChecks.map(t=>`<p class="small">${t.ok?"OK":"ОШИБКА"} — ${t.name}</p>`).join("")}
  <h3>Падение пуль</h3>
  ${bulletDropChecks.map(t=>`<p class="small">${t.ok?"OK":"ОШИБКА"} — ${t.name}</p>`).join("")}
  <h3>Бронежилет и оружие NPC</h3>
@@ -4104,6 +4764,10 @@ function loadRun(){
   if(!S.map||!S.p||!validateMap(S.map))throw Error("Формат");
   normalizeStamina(S);
   normalizeArmor(S);
+  if(!Array.isArray(S.p.weapons)||S.p.weapons.length!==2)throw Error("Слоты оружия");
+  S.p.weapons=S.p.weapons.map(w=>w??null);
+  if(S.p.slot!==0&&S.p.slot!==1)S.p.slot=0;
+  if(!activeWeapon())S.p.reload=0;
   for(const e of S.enemies)equipEnemy(e);
   S.medkits=Array.isArray(S.medkits)?S.medkits.filter(m=>
    m&&Number.isFinite(m.x)&&Number.isFinite(m.y)&&!wall(m.x,m.y)
@@ -4120,7 +4784,7 @@ function menu(){
  <div class="card">
  <p>Ищите портал, собирайте оружие и не стойте на линии предупреждения.</p>
  <p class="small">WASD — движение по экрану · мышь и ЛКМ — стрельба · R — перезарядка<br>
- Q / 1 / 2 — оружие · Shift — бег со стаминой · E — взаимодействие · Esc — пауза<br>
+ Q / 1 / 2 — оружие · Shift — бег со стаминой · E — взаимодействие · Tab — инвентарь · Esc — пауза<br>
  Бочки взрываются. Магазины окружены защитной зоной. Смерть завершает забег.</p>
  </div>
  <label>Seed нового забега <input id="seed" placeholder="Любое слово или число" style="padding:8px;border:1px solid #b8c8de;border-radius:10px"></label>
@@ -4135,6 +4799,18 @@ addEventListener("keydown",e=>{
  if(e.target.tagName==="INPUT")return;
  if(e.target instanceof Element&&e.target.closest("button")&&
     (e.code==="Space"||e.code==="Enter"))return;
+ if(e.code==="Tab"&&!e.ctrlKey&&!e.altKey&&!e.metaKey&&!e.shiftKey){
+  const inventoryOpen=paused&&$("#inventoryRoot")&&
+   !$("#modal").classList.contains("hidden");
+  if(S&&!S.dead&&!S.between&&(!paused||inventoryOpen)){
+   e.preventDefault();
+   if(!e.repeat){
+    if(inventoryOpen)closeModal();
+    else inventoryWindow();
+   }
+   return;
+  }
+ }
  if(["Space","KeyW","KeyA","KeyS","KeyD"].includes(e.code))e.preventDefault();
  if(e.repeat)return;
  keys[e.code]=true;
@@ -5395,8 +6071,12 @@ ctx.restore();
 
     if(player){
       const w=activeWeapon();
-      drawWeaponSprite(w,4,-22,Math.atan2(gy,gx),.85);
-      drawMuzzleVisual(a,gx,gy,weaponArt(w).muzzleLength*.85);
+      if(w){
+        drawWeaponSprite(w,4,-22,Math.atan2(gy,gx),.85);
+        drawMuzzleVisual(a,gx,gy,weaponArt(w).muzzleLength*.85);
+      }else{
+        drawPlayerKnife(a);
+      }
     }else if(idleMode){
       if(a.weapon)drawWeaponSprite(a.weapon,-11,-27,1.78,.55);
       drawIdleHands(leisure,coat);
