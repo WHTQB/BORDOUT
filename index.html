@@ -2736,6 +2736,7 @@ function save(){
 }
 let inventoryCleanup=null;
 function show(html){
+ deathSequence=null;
  $("#modal").classList.remove("main-menu","menu-background");
  $("#portalLabels").hidden=true;
  cancelKnifeAttack();
@@ -3475,7 +3476,7 @@ function emitEnemyBreakup(e){
   return;
  }
  const t=ENEMY_TYPES[e.type],scale=e.boss?1.65:1;
- const coat=e.boss?"#786d53":t.color;
+ const coat=e===S.p?"#b7975c":e.boss?"#786d53":t.color;
  const behavior=enemyBehaviorStates.get(e);
  const offset=behavior?.map===S.map&&behavior.mode==="sit"?13:0;
  // Экранное смещение X, высота, ширина, высота фрагмента, цвет.
@@ -4133,10 +4134,49 @@ function killEnemy(e,playerCredit=true){
   S.medkits.push({x:e.x,y:e.y});
  }
 }
+let deathSequence=null;
 function die(){
  if(!S||S.dead)return;
  S.dead=true;meta.best=Math.max(meta.best,S.level);persistMeta();
  try{localStorage.removeItem("prism-save")}catch{}
+ paused=true;keys={};mouse.down=false;
+ cancelKnifeAttack();
+ S.p.hp=0;S.p.inv=0;S.p.reload=0;
+ S.p.heal=0;S.p.armorRepair=0;S.p.sprinting=false;
+ delete S.p.knockback;
+ emitEnemyBreakup(S.p);
+ emitDeathBlood(S.p);
+ deathSequence={owner:S,map:S.map,remaining:2};
+ syncSound();
+}
+function updateDeathSequence(elapsed){
+ const sequence=deathSequence;
+ if(!sequence)return;
+ if(S!==sequence.owner||S.map!==sequence.map||!S.dead){
+  deathSequence=null;
+  return;
+ }
+ // В скрытой вкладке не пропускаем сцену смерти.
+ if(document.hidden||!document.hasFocus()||
+    !Number.isFinite(elapsed)||elapsed<=0)return;
+ const duration=Math.min(elapsed,sequence.remaining);
+ const steps=Math.max(1,Math.ceil(duration/(1/60)));
+ const dt=duration/steps;
+ for(let i=0;i<steps;i++){
+  updateCombatVisuals(dt);
+  for(const f of S.fx){
+   f.life-=dt;f.x+=f.vx*dt;f.y+=f.vy*dt;
+  }
+  S.fx=S.fx.filter(f=>f.life>0);
+ }
+ sequence.remaining=Math.max(0,sequence.remaining-duration);
+ if(sequence.remaining<=1e-8){
+  deathSequence=null;
+  deathWindow();
+ }
+}
+function deathWindow(){
+ if(!S||!S.dead)return;
  show(`<h1 class="death-title">УБИТ</h1><p>Забег завершён на уровне ${S.level}.</p>
  <p>Убито NPC за забег: <b>${npcKillCount(S).toLocaleString("ru-RU")}</b></p>
  <p>Коллекция: ${meta.collection.length} записей. Постоянный бонус здоровья:
@@ -4813,6 +4853,7 @@ function updateBullets(dt){
  if(!Number.isFinite(dt)||dt<=0)return;
  npcHitFrame++;
  for(const b of S.bullets){
+  if(S.dead)break;
   if(b.life<=0)continue;
   // Долетаем оставшуюся долю кадра, не исчезаем раньше границы.
   const flightDt=Math.min(dt,b.life);
@@ -4824,7 +4865,7 @@ function updateBullets(dt){
   const leadY=leadSteps?(b.y-launch.y)/leadSteps:0;
   if(leadSteps){b.x=launch.x;b.y=launch.y}
   delete b.launch;
-  for(let i=0;i<leadSteps+steps&&b.life>0;i++){
+  for(let i=0;i<leadSteps+steps&&b.life>0&&!S.dead;i++){
    const leading=i<leadSteps;
    const ox=b.x,oy=b.y;
    const nx=ox+(leading?leadX:b.vx*flightDt/steps);
@@ -4942,6 +4983,10 @@ function stepMedkitHealing(p,elapsed){
  return true;
 }
 function update(dt,realDt=dt){
+ if(deathSequence){
+  updateDeathSequence(realDt);
+  return;
+ }
  if(!S||paused||S.dead)return;
  S.doorWait=Math.max(0,(S.doorWait||0)-dt);
  updateCombatVisuals(dt);
@@ -6472,6 +6517,7 @@ function ellipse(x,y,rx,ry,color){
  ctx.fillStyle=color;ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.fill();
 }
 function drawActor(a,player=false){
+ if(a.hp<=0)return;
  if(!player&&mutantType(a)){drawMutant(a);return}
  if(!player&&a.bossKind==="donkey"){drawDonkey(a);return}
  const pos=project(a.x,a.y),boss=a.boss,t=player?null:ENEMY_TYPES[a.type];
@@ -6698,6 +6744,7 @@ function drawHUD(){
  $("#hint").textContent=nearest()?.text||"WASD · Shift — бег · ЛКМ · R · Q · E · Tab — инвентарь · Esc";
 }
 function pauseWindow(){
+ if(deathSequence&&deathSequence.owner===S)return;
  if(!S||S.dead){menu();return}
  if(S.between){S.pending?caseWindow():betweenWindow();return}
  setSoundtrackMenu(false);
@@ -9374,7 +9421,7 @@ function drawIdleHands(state,coat){
 }
 
 drawActor = function(a, player = false) {
-    if(!player&&a.hp<=0)return;
+    if(a.hp<=0)return;
     if(!player&&mutantType(a)){drawMutant(a);return}
     if(!player&&a.bossKind==="donkey"){drawDonkey(a);return}
     const p = project(a.x, a.y);
