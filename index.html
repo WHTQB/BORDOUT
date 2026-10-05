@@ -225,6 +225,21 @@ h3 {
   height: 24px;
 }
 
+.currency-cap {
+  display: inline-block;
+  width: 1.25em;
+  height: 1.25em;
+  vertical-align: -.25em;
+  pointer-events: none;
+}
+
+#modal .currency-cap > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
 #playerHUD .hero-slots {
   flex-shrink: 0;
   gap: 5px;
@@ -5560,6 +5575,19 @@ function interact(){
   meta.best=Math.max(meta.best,S.level);persistMeta();save();betweenWindow();
  }
 }
+function capCurrencyIcon(){
+ return `<span class="currency-cap" role="img" aria-label="Крышки">
+  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+   <path d="M10 2L12 3L14 2L15 4L18 3.5L18.5 6L21 6L20.5 9L22 10L21 12L22 14L20 15L20.5 18L18 18.5L18 21L15 20.5L14 22L12 21L10 22L9 20L6 20.5L5.5 18L3 18L3.5 15L2 14L3 12L2 10L4 9L3.5 6L6 5.5L6 3L9 3.5Z"
+    fill="#a6a598" stroke="#49483e" stroke-width="1.2" stroke-linejoin="round"/>
+   <circle cx="12" cy="12" r="7.4" fill="#ad543c" stroke="#e0d4b8" stroke-width="1.2"/>
+   <path d="M12 7L13.4 10.2L17 10.5L14.3 12.9L15.1 16.4L12 14.5L8.9 16.4L9.7 12.9L7 10.5L10.6 10.2Z"
+    fill="#ead9b8"/>
+   <path d="M6.5 8L8 6.5M16 17.5L17.5 16"
+    fill="none" stroke="#f4e8cd" stroke-width="1.2" stroke-linecap="round"/>
+  </svg>
+ </span>`;
+}
 function stats(w, reference) {
   if(!w)return knifeStats();
   const rarity = RARITY[w.rare];
@@ -5899,7 +5927,7 @@ function inventoryWindow(sh=null){
    <h1>Персонаж</h1>
    <button id="inventoryClose" type="button">Вернуться</button>
   </header>
-  <p><b>Деньги: ${owner.money} ¤</b> · Активный слот: ${player.slot+1}</p>
+  <p><b>Деньги: ${owner.money} ${capCurrencyIcon()}</b> · Активный слот: ${player.slot+1}</p>
   <p class="small">Клик по руке — выбрать активный слот для сравнения.
    Наведение на оружие — только отличия от активного слота.
    Кнопки под предметом — подбор или покупка. Также можно перетащить оружие на руку или в раздел «На полу».</p>
@@ -6000,10 +6028,11 @@ function inventoryWindow(sh=null){
    redraw("inventorySelect"+slot);
   }
  };
- const button=(parent,label,action,disabled=false)=>{
+ const button=(parent,label,action,disabled=false,currency=false)=>{
   const el=document.createElement("button");
   el.type="button";
   el.textContent=label;
+  if(currency)el.insertAdjacentHTML("beforeend",capCurrencyIcon());
   el.disabled=disabled;
   el.onclick=action;
   parent.appendChild(el);
@@ -6038,9 +6067,10 @@ function inventoryWindow(sh=null){
    const blocked=entry.kind==="floor"&&!lineClear(player,entry.item);
    for(const slot of [0,1]){
     button(actions,entry.kind==="shop"
-     ?`Купить в слот ${slot+1} · ${entry.w.price} ¤`
+     ?`Купить в слот ${slot+1} · ${entry.w.price} `
      :`В слот ${slot+1}`,()=>equip(entry,slot),
-     blocked||(entry.kind==="shop"&&owner.money<entry.w.price));
+     blocked||(entry.kind==="shop"&&owner.money<entry.w.price),
+     entry.kind==="shop");
    }
   }
   const revealTip=()=>{
@@ -6068,7 +6098,7 @@ function inventoryWindow(sh=null){
   };
   el.ondragend=()=>{dragged=null};
  };
- const itemButton=(parent,w,label)=>{
+ const itemButton=(parent,w,label,currency=false)=>{
   const el=button(parent,"",()=>{});
   el.className="inventory-item";
   if(w){
@@ -6086,6 +6116,7 @@ function inventoryWindow(sh=null){
   const caption=document.createElement("div");
   caption.className="small";
   caption.textContent=label;
+  if(currency)caption.insertAdjacentHTML("beforeend",capCurrencyIcon());
   el.appendChild(caption);
   return el;
  };
@@ -6150,7 +6181,7 @@ function inventoryWindow(sh=null){
   if(!sh.items.length)shopList.textContent="Всё распродано.";
   for(const w of sh.items){
    const entry={kind:"shop",w};
-   const el=itemButton(shopList,w,`${RARITY[w.rare].name} · ${w.price} ¤`);
+   const el=itemButton(shopList,w,`${RARITY[w.rare].name} · ${w.price} `,true);
    attach(el,entry);
    el.onclick=e=>inspect(entry,e.clientX||el.getBoundingClientRect().right,
     e.clientY||el.getBoundingClientRect().top);
@@ -6198,17 +6229,17 @@ function shopWindow(sh){
  let cards="";
  if(sh.kind==="weapons"){
   cards=sh.items.map((w,i)=>`<div class="card">${stats(w,activeWeapon())}
-   <button id="buy${i}" ${S.money<w.price?"disabled":""}>${w.price} ¤ · заменить слот ${S.p.slot+1}</button></div>`).join("");
+   <button id="buy${i}" ${S.money<w.price?"disabled":""}>${w.price} ${capCurrencyIcon()} · заменить слот ${S.p.slot+1}</button></div>`).join("");
  }else{
   cards=sh.items.map((id,i)=>{
    const u=UPGRADES.find(u=>u.id===id),rank=S.up[id]||0,cost=u.cost+S.level*5;
    return `<div class="card"><h3>${u.name}</h3><p>${u.desc}</p>
    <p class="small">Ранг ${rank}/${u.max}. Действует до конца забега.</p>
-   <button id="buy${i}" ${rank>=u.max||S.money<cost?"disabled":""}>${cost} ¤</button></div>`;
+   <button id="buy${i}" ${rank>=u.max||S.money<cost?"disabled":""}>${cost} ${capCurrencyIcon()}</button></div>`;
   }).join("");
  }
  show(`<h2>${sh.kind==="weapons"?"Точка LUMA / оружие":"BODY POP / улучшения"}</h2>
- <p>Кредиты: <b>${S.money} ¤</b>. Просмотр безопасен: игра приостановлена.</p>
+ <p>Кредиты: <b>${S.money} ${capCurrencyIcon()}</b>. Просмотр безопасен: игра приостановлена.</p>
  ${sh.kind==="weapons"?`<details><summary>Ваше активное оружие</summary>${stats(activeWeapon())}</details>`:""}
  <div class="row">${cards||"<p>Всё распродано.</p>"}</div>
  <button id="back">Вернуться</button>`);
@@ -6239,14 +6270,14 @@ function betweenWindow(){
  setSoundtrackMenu(false);
  const p=S.p,caseCost=CFG.casePrice(S.level);
  show(`<h1>CHECKPOINT / ${S.level}</h1>
- <p>Безопасный магазин · <b>${S.money} ¤</b></p>
+ <p>Безопасный магазин · <b>${S.money} ${capCurrencyIcon()}</b></p>
  <p>Здоровье ${Math.ceil(p.hp)}/${p.max} · бронежилет ${p.armor}/10 ячеек</p>
  <p class="small">Каждая ячейка полностью поглощает одно попадание, включая взрыв. После попадания сохраняется защита на 0,3 с. Без ячеек урон получает здоровье.</p>
  <div class="actions">
- <button id="heal" ${S.money<CFG.healPrice||p.hp>=p.max?"disabled":""}>+45 здоровья · ${CFG.healPrice} ¤</button>
- <button id="armor" ${S.money<CFG.armorPrice||p.armor>=p.maxArmor?"disabled":""}>Ремонт до 10 ячеек · ${CFG.armorPrice} ¤</button>
- <button id="ammo" ${S.money<CFG.ammoPrice?"disabled":""}>Запас патронов · ${CFG.ammoPrice} ¤</button>
- <button id="case" ${S.money<caseCost?"disabled":""}>Кейс ур. ${S.level+1} · ${caseCost} ¤</button>
+ <button id="heal" ${S.money<CFG.healPrice||p.hp>=p.max?"disabled":""}>+45 здоровья · ${CFG.healPrice} ${capCurrencyIcon()}</button>
+ <button id="armor" ${S.money<CFG.armorPrice||p.armor>=p.maxArmor?"disabled":""}>Ремонт до 10 ячеек · ${CFG.armorPrice} ${capCurrencyIcon()}</button>
+ <button id="ammo" ${S.money<CFG.ammoPrice?"disabled":""}>Запас патронов · ${CFG.ammoPrice} ${capCurrencyIcon()}</button>
+ <button id="case" ${S.money<caseCost?"disabled":""}>Кейс ур. ${S.level+1} · ${caseCost} ${capCurrencyIcon()}</button>
  </div>
  <p class="small" style="margin-top:18px">После трёх кейсов ниже эпической редкости следующий гарантирует эпический предмет.
  Цена и уровень содержимого растут с этажом. Пушки не обязаны подходить вашей сборке.</p>
@@ -6279,7 +6310,7 @@ function caseWindow(){
 </div>
 </div>
  <div class="actions"><button id="equip">Заменить слот ${S.p.slot+1}</button>
- <button id="recycle">Разобрать за ${Math.round(w.price*.25)} ¤</button></div>`);
+ <button id="recycle">Разобрать за ${Math.round(w.price*.25)} ${capCurrencyIcon()}</button></div>`);
  mountWeaponSlotPicker(caseWindow);
  on("equip",()=>{S.p.weapons[S.p.slot]=w;S.p.reload=0;collect(w);S.pending=null;save();betweenWindow()});
  on("recycle",()=>{S.money+=Math.round(w.price*.25);S.pending=null;save();betweenWindow()});
