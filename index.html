@@ -599,6 +599,46 @@ h3 {
   text-shadow: 0 1px 2px #000;
 }
 
+.author-whtqb {
+  display: inline-block;
+  padding: 4px 6px;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.author-whtqb > span {
+  display: inline-block;
+  font-weight: 700;
+}
+
+.author-whtqb:hover > span,
+.author-whtqb:focus-visible > span {
+  font-weight: 900;
+  text-shadow: .25px 0 currentColor, -.25px 0 currentColor;
+  animation: author-whtqb-jitter .18s steps(1, end) infinite;
+}
+
+.author-whtqb:focus-visible {
+  outline: 3px solid #52797a;
+  outline-offset: 3px;
+}
+
+@keyframes author-whtqb-jitter {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  20% { transform: translate(-1px, 1px) rotate(-2deg); }
+  40% { transform: translate(2px, -1px) rotate(1deg); }
+  60% { transform: translate(-2px, 0) rotate(-1deg); }
+  80% { transform: translate(1px, 1px) rotate(2deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .author-whtqb:hover > span,
+  .author-whtqb:focus-visible > span {
+    animation: none;
+  }
+}
+
 .window {
   width: min(930px, 96vw);
   max-height: 90vh;
@@ -797,17 +837,238 @@ details[open] summary {
   overflow-wrap: anywhere;
 }
 
-@media (min-width: 900px) {
-  #content.inventory-comparison-window {
-    flex-shrink: 0;
-    width: min(930px, calc(100vw - 352px));
-    margin-right: 312px;
-  }
+#content.inventory-comparison-window {
+  flex-shrink: 0;
+  width: min(1240px, calc(100vw - 40px));
+  margin: 0;
+  padding: 18px;
+  border: 3px solid #34291e;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #796044, #54402d);
+  box-shadow: inset 0 0 0 2px #ab886044, 0 8px 24px #1b140c88;
 }
 
-@media (min-width: 900px) and (max-width: 1100px) {
-  .inventory-comparison-window .inventory-layout {
+#inventoryRoot .inventory-heading {
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin-bottom: 18px;
+}
+
+#inventoryRoot .inventory-heading h1 {
+  margin-right: auto;
+  color: #fff0cc;
+  font-size: clamp(26px, 4vw, 52px);
+  letter-spacing: 1px;
+  text-shadow: 2px 3px 0 #2d241a;
+}
+
+#inventoryRoot .inventory-money {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #fff0cc;
+  font-size: clamp(22px, 3vw, 38px);
+  font-weight: 900;
+}
+
+#inventoryRoot .inventory-money .currency-cap {
+  width: 1.6em;
+  height: 1.6em;
+}
+
+#inventoryRoot .inventory-layout {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+
+#inventoryRoot .inventory-left {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#inventoryRoot .inventory-equipment,
+#inventoryRoot .inventory-condition,
+#inventoryRoot .inventory-floor,
+#inventoryRoot .inventory-shop {
+  min-width: 0;
+  padding: 12px;
+  border: 3px solid #3c3023;
+  border-radius: 8px;
+  background: linear-gradient(120deg, #ddc59c, #b99b71);
+  box-shadow: inset 0 0 0 2px #f5dfb544, 0 3px 0 #30251988;
+}
+
+#inventoryRoot .inventory-section-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  margin-bottom: 12px;
+  padding: 9px 12px;
+  border-radius: 4px;
+  background: #51402d;
+  color: #fff0d0;
+}
+
+#inventoryRoot .inventory-section-heading h2 {
+  margin: 0;
+  font-size: clamp(18px, 2.4vw, 28px);
+  letter-spacing: .5px;
+}
+
+#inventoryRoot .inventory-character {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 14px;
+  min-height: 0;
+  padding: 18px 6px 6px;
+  border: 0;
+  background: none;
+}
+
+#inventoryRoot .inventory-hand {
+  display: flex;
+  flex-direction: column;
+}
+
+#inventoryRoot .inventory-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 7px;
+  padding: 12px;
+  border: 2px solid #806a49;
+  border-radius: 6px;
+  background: linear-gradient(130deg, #e6d0a9, #d3b98e);
+  color: #29251d;
+  box-shadow: 0 2px 3px #49352344;
+  text-align: center;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+#inventoryRoot .inventory-hand > .inventory-item {
+  flex: 1;
+  padding-top: 25px;
+}
+
+#inventoryRoot .inventory-item:hover:not(:disabled) {
+  background: linear-gradient(130deg, #f1dbb1, #dec18f);
+  border-color: #ad7930;
+}
+
+#inventoryRoot .inventory-item[aria-pressed="true"] {
+  border-color: #805711;
+  box-shadow: 0 0 0 3px #efbc38, 0 0 17px #ffcd4a99;
+}
+
+#inventoryRoot .inventory-item svg,
+#inventoryRoot .inventory-item[aria-pressed="true"] svg {
+  flex: 0 0 auto;
+  width: 100%;
+  height: clamp(78px, 12vw, 145px);
+  margin: 0;
+}
+
+#inventoryRoot .inventory-item strong {
+  display: block;
+  font-size: clamp(13px, 1.6vw, 19px);
+}
+
+#inventoryRoot .inventory-slot-number {
+  position: absolute;
+  top: -19px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 14px;
+  border: 2px solid #79633f;
+  border-radius: 5px;
+  background: #ddc497;
+  font-size: 25px;
+  font-weight: 900;
+}
+
+#inventoryRoot [aria-pressed="true"] .inventory-slot-number {
+  border-color: #805711;
+  background: #f2cc70;
+}
+
+#inventoryRoot .inventory-ammo {
+  margin-top: auto;
+  padding: 4px;
+  border: 2px solid #bda176;
+  border-radius: 3px;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+#inventoryRoot .inventory-reserve {
+  font-size: 18px;
+  font-weight: 900;
+}
+
+#inventoryRoot .inventory-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  max-height: 56vh;
+  padding: 4px;
+}
+
+#inventoryRoot #inventoryFloorList .inventory-item {
+  height: 100%;
+}
+
+#inventoryRoot .inventory-item[aria-disabled="true"] {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+#inventoryRoot .inventory-condition {
+  flex: 1;
+}
+
+#inventoryRoot .inventory-meters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  align-items: center;
+  gap: 7px 12px;
+  margin-bottom: 12px;
+  font-weight: 900;
+  font-size: clamp(10px, 1.5vw, 16px);
+}
+
+#inventoryRoot .inventory-meters .bar,
+#inventoryRoot .inventory-meters .armor-cells {
+  height: 20px;
+  margin: 0;
+}
+
+#inventoryRoot .inventory-help {
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid #8b704b;
+  line-height: 1.5;
+}
+
+#inventoryRoot .inventory-upgrades {
+  margin-top: 10px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  #content.inventory-comparison-window {
+    width: calc(100vw - 20px);
+    padding: 10px;
+  }
+  #inventoryRoot .inventory-layout {
     grid-template-columns: minmax(0, 1fr);
+  }
+  #inventoryRoot .inventory-list {
+    max-height: 45vh;
   }
 }
 
@@ -1323,6 +1584,7 @@ const CFG={
  barrelBlastRadius:4,barrelDamageFraction:.8,
  staminaMax:100,staminaDrain:20,staminaRegen:8,
  staminaDelay:2,sprintMultiplier:1.815,staminaRestart:.25,
+ rollDistance:3.6,rollSeconds:.24,rollStaminaFraction:.5,
  healPrice:25,armorPrice:22,ammoPrice:12,
  medkitChance:.2,medkitHP:40,medkitSeconds:1,
  armorVestCells:2,armorVestSeconds:1,
@@ -1969,6 +2231,7 @@ let meta={best:0,runs:0,collection:[]},settings={volume:.15,flash:.5,shake:.3};
 try{meta={...meta,...JSON.parse(localStorage.getItem("prism-meta")||"{}")};
 settings={...settings,...JSON.parse(localStorage.getItem("prism-settings")||"{}")}}catch{}
 let S=null,paused=true,keys={},mouse={x:W/2,y:H/2,down:false};
+let playerRoll=null;
 let camera={x:0,y:0},shake=0,shotShake=0,toastTimer=0,saveTimer=0,pathTimer=0,field=[];
 let audio=null,aim={x:1,y:0},lastTime=performance.now();
 const soundRandom=rng(0xA71D105);
@@ -2737,6 +3000,7 @@ function save(){
 let inventoryCleanup=null;
 function show(html){
  deathSequence=null;
+ playerRoll=null;
  $("#modal").classList.remove("main-menu","menu-background");
  $("#portalLabels").hidden=true;
  cancelKnifeAttack();
@@ -3056,6 +3320,7 @@ function drawDonkeyPellet(b,z=19){
  ctx.restore();
 }
 function buildLevel(){
+ playerRoll=null;
  stopGameSounds();
  delete S.houseWorld;
  S.houseRooms=[];
@@ -3177,6 +3442,7 @@ function switchWeapon(slot){
 }
 function refill(w,n){if(!w)return;const take=Math.min(n,w.mag-w.ammo,w.reserve);w.ammo+=take;w.reserve-=take}
 function normalizeStamina(state){
+ if(state===S)playerRoll=null;
  const p=state.p,stats=staminaStats(state.up);
  p.stamina=Number.isFinite(p.stamina)?clamp(p.stamina,0,stats.max):stats.max;
  p.staminaWait=Number.isFinite(p.staminaWait)?Math.max(0,p.staminaWait):0;
@@ -3185,6 +3451,60 @@ function normalizeStamina(state){
  if(p.dash>0)p.inv=0;
  delete p.dash;
  delete p.dashCD;
+}
+function updatePlayerAim(){
+ const cursor=cameraInputPoint(mouse.x,mouse.y);
+ const screenDX=cursor.x-(W/2+4),screenDY=cursor.y-(H/2-22);
+ const aimX=screenDX/64+screenDY/32,aimY=-screenDX/64+screenDY/32;
+ const aimLength=Math.hypot(aimX,aimY);
+ if(aimLength>1e-6)aim={x:aimX/aimLength,y:aimY/aimLength};
+}
+function startPlayerRoll(){
+ if(!S||paused||S.dead||S.between||playerRoll)return;
+ const p=S.p;
+ if(!(p.hp>0)||p.knockback||p.heal>0||p.armorRepair>0)return;
+ const cost=staminaStats(S.up).max*CFG.rollStaminaFraction;
+ if(!Number.isFinite(p.stamina)||p.stamina+1e-8<cost){
+  toast("Для переката нужно 50% максимальной выносливости");
+  return;
+ }
+ // Направление берётся по текущему курсору и фиксируется до конца переката.
+ updatePlayerAim();
+ p.stamina=Math.max(0,p.stamina-cost);
+ if(p.stamina<1e-8){p.stamina=0;p.exhausted=true}
+ p.staminaWait=CFG.staminaDelay;
+ p.sprinting=false;
+ cancelKnifeAttack();
+ playerRoll={owner:S,actor:p,map:S.map,dx:aim.x,dy:aim.y,elapsed:0};
+}
+function stepPlayerRoll(dt){
+ const roll=playerRoll;
+ if(!roll)return false;
+ if(roll.owner!==S||roll.actor!==S.p||roll.map!==S.map||S.dead||S.p.hp<=0){
+  playerRoll=null;
+  return false;
+ }
+ if(!Number.isFinite(dt)||dt<=0)return true;
+ const p=S.p;
+ const from=clamp(roll.elapsed/CFG.rollSeconds,0,1);
+ roll.elapsed=Math.min(CFG.rollSeconds,roll.elapsed+dt);
+ const to=roll.elapsed/CFG.rollSeconds;
+ // Резкий старт с торможением; полная дальность не зависит от числа кадров.
+ const travel=CFG.rollDistance*((1-from)**2-(1-to)**2);
+ const steps=Math.max(1,Math.ceil(travel/.06));
+ for(let i=0;i<steps;i++){
+  const x=p.x+roll.dx*travel/steps,y=p.y+roll.dy*travel/steps;
+  // Малые шаги исключают проскок сквозь стены, мебель, ящики и бочки.
+  if(!knockbackPositionClear(p,x,y)){
+   playerRoll=null;
+   break;
+  }
+  p.x=x;p.y=y;
+ }
+ if(to>=1)playerRoll=null;
+ p.staminaWait=CFG.staminaDelay;
+ p.sprinting=false;
+ return true;
 }
 function projectile(x,y,angle,speed,damage,enemy,extra={}){
  if(S.bullets.length>=700)return;
@@ -4140,6 +4460,7 @@ function die(){
  S.dead=true;meta.best=Math.max(meta.best,S.level);persistMeta();
  try{localStorage.removeItem("prism-save")}catch{}
  paused=true;keys={};mouse.down=false;
+ playerRoll=null;
  cancelKnifeAttack();
  S.p.hp=0;S.p.inv=0;S.p.reload=0;
  S.p.heal=0;S.p.armorRepair=0;S.p.sprinting=false;
@@ -4552,6 +4873,7 @@ function startKnockback(actor,source,distance){
   dx=Math.cos(angle);dy=Math.sin(angle);length=1;
  }
  // Новый удар заменяет импульс, не складывает бесконечную дальность.
+ if(S&&actor===S.p)playerRoll=null;
  actor.knockback={dx:dx/length,dy:dy/length,remaining:Math.min(4,distance)};
 }
 function stepKnockback(actor,dt,clear=knockbackPositionClear){
@@ -5022,20 +5344,18 @@ function update(dt,realDt=dt){
  const shiftHeld=Boolean(keys.ShiftLeft||keys.ShiftRight);
  const baseSpeed=p.speed*(1+.1*(S.up.speed||0))*(p.slow>0?.55:1);
  const knocked=stepKnockback(p,dt);
- const canMove=!knocked&&len>0&&(
+ if(knocked)playerRoll=null;
+ const rolling=!knocked&&stepPlayerRoll(dt);
+ const canMove=!knocked&&!rolling&&len>0&&(
   (dx!==0&&valid(p.x+dx*baseSpeed*dt,p.y))||
   (dy!==0&&valid(p.x,p.y+dy*baseSpeed*dt))
  );
- const runTime=stepStamina(p,S.up,realDt,shiftHeld&&canMove,shiftHeld);
+ // Перекат уже оплачен: не добавляем расход бега и восстановление в этом кадре.
+ const runTime=rolling?0:stepStamina(p,S.up,realDt,shiftHeld&&canMove,shiftHeld);
  const runFraction=realDt>0?runTime/realDt:0;
  const speed=baseSpeed*(1+(CFG.sprintMultiplier-1)*runFraction);
- if(len&&!knocked)move(p,dx*speed*dt,dy*speed*dt);
- // Возвращаем курсор в координаты сцены до масштабирования камеры.
- const cursor=cameraInputPoint(mouse.x,mouse.y);
- const screenDX=cursor.x-(W/2+4),screenDY=cursor.y-(H/2-22);
- const aimX=screenDX/64+screenDY/32,aimY=-screenDX/64+screenDY/32;
- const aimLength=Math.hypot(aimX,aimY);
- if(aimLength>1e-6)aim={x:aimX/aimLength,y:aimY/aimLength};
+ if(len&&!knocked&&!rolling)move(p,dx*speed*dt,dy*speed*dt);
+ updatePlayerAim();
  if(mouse.down)shoot();
  updateEnemies(dt);if(S.dead)return;
  updateBullets(dt);if(S.dead)return;
@@ -5385,6 +5705,7 @@ function createHouseScene(b,seed,level,nextId=()=>++serial){
  return scene;
 }
 function finishHouseTransition(point=null){
+ playerRoll=null;
  if(point){S.p.x=point.x;S.p.y=point.y}
  delete S.p.knockback;
  cancelKnifeAttack();
@@ -5969,40 +6290,46 @@ function inventoryWindow(sh=null){
   .sort((a,b)=>dist(a,player)-dist(b,player));
  show(`<div id="inventoryRoot">
   <header class="inventory-heading">
-   <h1>Персонаж</h1>
+   <h1>Инвентарь</h1>
+   <div class="inventory-money" aria-label="Крышки: ${owner.money}">
+    ${capCurrencyIcon()}<span>${owner.money}</span>
+   </div>
    <button id="inventoryClose" type="button">Вернуться</button>
   </header>
-  <p><b>Деньги: ${owner.money} ${capCurrencyIcon()}</b> · Активный слот: ${player.slot+1}</p>
-  <p class="small">Клик по руке — выбрать активный слот для сравнения.
-   Наведение на оружие — только отличия от активного слота.
-   Кнопки под предметом — подбор или покупка. Также можно перетащить оружие на руку или в раздел «На полу».</p>
   <div class="inventory-layout">
-   <section aria-label="Персонаж и оружейные слоты">
-    <div class="inventory-character">
-     <div id="inventoryHand0" class="inventory-hand"></div>
-     <svg class="inventory-avatar" viewBox="0 0 100 250" role="img" aria-label="Главный герой">
-      <ellipse cx="50" cy="235" rx="33" ry="8" fill="#302a2448"/>
-      <g stroke="#302a23" stroke-width="3" stroke-linejoin="round">
-       <path d="M36 160L30 225H43L49 171L55 225H69L62 160Z" fill="#645c46"/>
-       <path d="M28 225H44V236H23ZM54 225H70L77 236H54Z" fill="#302d25"/>
-       <path d="M27 87L16 147L24 154L37 106M73 87L84 147L76 154L63 106" fill="#b7975c"/>
-       <path d="M32 82H68L76 168H24Z" fill="#b7975c"/>
-       <path d="M38 90H62V135H38Z" fill="#514b3b"/>
-       <path d="M33 91L65 147" fill="none" stroke="#c5ae7c" stroke-width="6"/>
-       <ellipse cx="50" cy="62" rx="18" ry="23" fill="#c5ad7b"/>
-       <path d="M34 58H66V68H34Z" fill="#688a8b"/>
-       <path d="M27 45H73M35 45V29H65V45" fill="#695940" stroke-width="5"/>
-       <ellipse cx="20" cy="153" rx="6" ry="8" fill="#c5ad7b"/>
-       <ellipse cx="80" cy="153" rx="6" ry="8" fill="#c5ad7b"/>
-      </g>
-     </svg>
-     <div id="inventoryHand1" class="inventory-hand"></div>
+   <section class="inventory-left" aria-label="Снаряжение и состояние героя">
+    <div class="inventory-equipment">
+     <div class="inventory-section-heading"><h2>Активные слоты</h2></div>
+     <div class="inventory-character">
+      <div id="inventoryHand0" class="inventory-hand"></div>
+      <div id="inventoryHand1" class="inventory-hand"></div>
+     </div>
+    </div>
+    <div class="inventory-condition" aria-label="Состояние героя">
+     <div class="inventory-meters">
+      <span>БРОНЯ</span>
+      <div class="armor-cells" role="img" aria-label="Броня: ${player.armor} из 10">${Array.from({length:10},(_,i)=>`<i class="${i<player.armor?"":"empty"}"></i>`).join("")}</div>
+      <span>ЗДОРОВЬЕ</span>
+      <div class="bar" role="img" aria-label="Здоровье: ${Math.ceil(player.hp)} из ${player.max}"><i style="width:${clamp(player.hp/player.max*100,0,100)}%;background:var(--rust)"></i></div>
+      <span>ВЫНОСЛИВОСТЬ</span>
+      <div class="bar" role="img" aria-label="Выносливость: ${Math.floor(player.stamina)} из ${staminaStats(owner.up).max}"><i style="width:${clamp(player.stamina/staminaStats(owner.up).max*100,0,100)}%;background:#83964d"></i></div>
+     </div>
+     <p class="small">HP ${Math.ceil(player.hp)}/${player.max} · Броня ${player.armor}/10 ·
+      STA ${Math.floor(player.stamina)}/${staminaStats(owner.up).max}</p>
+     <p class="inventory-help small"><b>Выбран слот ${player.slot+1}.</b>
+      Клик по слоту — выбрать его. Клик по карточке в разделе «На полу» —
+      взять оружие в выбранный слот; прежняя пушка останется у ног героя.
+      Если в слоте нож, найденная пушка просто займёт его место.
+      Наведение — сравнение. Перетаскивание также доступно.</p>
+     <div id="inventoryUpgrades" class="inventory-upgrades small"></div>
     </div>
    </section>
    <section id="inventoryFloor" class="inventory-floor" aria-label="Оружие на полу">
-    <h2>На полу</h2>
-    <p class="small">Радиус ${INVENTORY_RADIUS} м · Предметов: ${floor.length}.
-     Через стены подобрать нельзя.</p>
+    <div class="inventory-section-heading">
+     <h2>На полу</h2>
+     <span class="small">Радиус: ${INVENTORY_RADIUS} м · Предметов: ${floor.length}</span>
+    </div>
+    <p class="small">Клик — обмен с выбранным слотом. Через стены подобрать нельзя.</p>
     <div id="inventoryFloorList" class="inventory-list"></div>
    </section>
   </div>
@@ -6014,6 +6341,10 @@ function inventoryWindow(sh=null){
    aria-label="Отличия от активного оружия" hidden></div>
  </div>`);
  const root=$("#inventoryRoot"),tip=$("#inventoryTooltip");
+ $("#inventoryUpgrades").textContent=Object.entries(owner.up)
+  .filter(([,rank])=>rank>0)
+  .map(([id,rank])=>(UPGRADES.find(u=>u.id===id)?.name||id)+" "+rank)
+  .join(" · ")||"Улучшений пока нет";
  const content=$("#content");
  content.classList.add("inventory-comparison-window");
  $("#modal").appendChild(tip);
@@ -6101,7 +6432,8 @@ function inventoryWindow(sh=null){
   tip.style.top=clamp(top,8,Math.max(8,innerHeight-height-8))+"px";
  };
  const attach=(el,entry)=>{
-  if(entry.kind!=="hand"){
+  // Напольные карточки обмениваются одним кликом; товары требуют покупки.
+  if(entry.kind==="shop"){
    const wrapper=document.createElement("div");
    wrapper.className="inventory-entry";
    el.replaceWith(wrapper);
@@ -6150,7 +6482,7 @@ function inventoryWindow(sh=null){
    el.innerHTML=weaponPreview(w);
    const name=document.createElement("strong");
    name.textContent=w.name;
-   name.style.color=RARITY[w.rare].color;
+   el.style.borderTopColor=RARITY[w.rare].color;
    el.appendChild(name);
   }else{
    el.innerHTML=knifePreview();
@@ -6163,11 +6495,25 @@ function inventoryWindow(sh=null){
   caption.textContent=label;
   if(currency)caption.insertAdjacentHTML("beforeend",capCurrencyIcon());
   el.appendChild(caption);
+  const ammo=document.createElement("div");
+  ammo.className="inventory-ammo";
+  ammo.textContent=w?`${w.ammo} / ${w.mag}`:`${KNIFE.damage} HP`;
+  ammo.setAttribute("aria-label",w
+   ?`Патроны в магазине: ${w.ammo} из ${w.mag}`:`Урон ножа: ${KNIFE.damage} HP`);
+  const reserve=document.createElement("div");
+  reserve.className="inventory-reserve";
+  reserve.textContent=w?`Запас: ${w.reserve}`:"Без патронов";
+  el.append(ammo,reserve);
   return el;
  };
  for(const slot of [0,1]){
   const hand=document.getElementById("inventoryHand"+slot),w=player.weapons[slot];
-  const el=itemButton(hand,w,`Слот ${slot+1}`);
+  const el=itemButton(hand,w,player.slot===slot?"Выбранный слот":"Выбрать слот");
+  const number=document.createElement("span");
+  number.className="inventory-slot-number";
+  number.textContent=String(slot+1);
+  el.prepend(number);
+  el.setAttribute("aria-label",`Слот ${slot+1}: ${w?w.name:"Нож"}`);
   el.id="inventorySelect"+slot;
   el.setAttribute("aria-pressed",String(player.slot===slot));
   attach(el,{kind:"hand",slot,w});
@@ -6202,11 +6548,17 @@ function inventoryWindow(sh=null){
  if(!floor.length)floorList.textContent="Рядом нет оружия. Сюда можно выкинуть оружие из рук.";
  for(const item of floor){
   const entry={kind:"floor",item,w:item.w};
+  const blocked=!lineClear(player,item);
   const el=itemButton(floorList,item.w,`${dist(item,player).toFixed(1)} м${
-   lineClear(player,item)?"":" · За препятствием"}`);
+   blocked?" · За препятствием":` · В слот ${player.slot+1}`}`);
   attach(el,entry);
-  el.onclick=e=>inspect(entry,e.clientX||el.getBoundingClientRect().right,
-   e.clientY||el.getBoundingClientRect().top);
+  el.setAttribute("aria-disabled",String(blocked));
+  el.title=blocked?"Оружие за препятствием":
+   `Клик — обмен с выбранным слотом ${player.slot+1}`;
+  el.onclick=()=>{
+   if(dragged||!isOpen())return;
+   equip(entry,player.slot);
+  };
  }
  const floorZone=$("#inventoryFloor");
  floorZone.ondragover=e=>{
@@ -6741,7 +7093,7 @@ function drawHUD(){
  playerHUD.hidden=false;
  if(html!==lastHUD){playerHUD.innerHTML=html;lastHUD=html}
  ammoHUD.hidden=true;
- $("#hint").textContent=nearest()?.text||"WASD · Shift — бег · ЛКМ · R · Q · E · Tab — инвентарь · Esc";
+ $("#hint").textContent=nearest()?.text||"WASD · Shift — бег · Пробел — перекат · ЛКМ · R · Q · E · Tab — инвентарь · Esc";
 }
 function pauseWindow(){
  if(deathSequence&&deathSequence.owner===S)return;
@@ -8120,6 +8472,10 @@ function aboutGameWindow(){
  <p><b>Q</b> — переключение между двумя оружейными слотами.
  <b>1 / 2</b> — выбор конкретного слота.</p>
  <p><b>Левый или правый Shift + движение</b> — бег с расходом выносливости.</p>
+ <p><b>Пробел</b> — резкий перекат в сторону прицела за половину максимальной
+ выносливости. Нужен запас не меньше половины. Препятствия останавливают
+ перекат; неуязвимости он не даёт. Для следующего переката отпустите
+ пробел и нажмите снова.</p>
  <p><b>E</b> — действие из подсказки внизу экрана:
  войти в дом или пещеру, выйти наружу, использовать аптечку или бронежилет,
  открыть магазин, посмотреть оружие на полу или активировать эвакуацию.</p>
@@ -8127,10 +8483,18 @@ function aboutGameWindow(){
  <p><b>Esc</b> — пауза; из обычного игрового окна — возвращение в игру.
  В разделе «Об игре» — возврат в главное меню.
  <b>Кнопка Ⅱ</b> — открыть паузу.</p>
- <p><b>В инвентаре:</b> клик по руке выбирает активный слот;
- наведение на оружие показывает отличия от него.
- Подбирайте и покупайте кнопками под предметом или перетаскивайте оружие на руку.
- Кнопка «Выкинуть» или перенос из руки в «На полу» освобождает слот.</p>
+ <p><b>В инвентаре:</b> кликните по слоту 1 или 2 — активный слот выделяется
+ золотой рамкой. Затем кликните по карточке оружия в разделе «На полу»:
+ найденная пушка займёт выбранный слот, а прежняя останется на полу у ног героя.
+ Второй слот не меняется. Патроны и характеристики обеих пушек сохраняются.
+ Если выбран слот с ножом, найденное оружие просто займёт его место.</p>
+ <p>Обмен кликом работает <b>только внутри открытого инвентаря</b>,
+ в радиусе ${INVENTORY_RADIUS} м и без стены между героем и предметом.
+ Наведение показывает отличия от активного оружия. Можно также перетащить
+ оружие на нужный слот. Товары арсенала покупаются кнопками под карточкой
+ или перетаскиванием в слот; простой клик по товару не тратит крышки.
+ Кнопка «Выкинуть» или перенос из слота в «На полу» освобождает слот,
+ возвращая нож.</p>
  <p><b>Колесо мыши</b> — прокрутка окон и списков.
  Над карточкой оружия — прокрутка длинной подсказки сравнения.</p>
  </section>
@@ -8193,6 +8557,55 @@ function aboutGameWindow(){
  $("#content").scrollTop=0;
  $("#aboutBack").focus({preventScroll:true});
 }
+function authorsWindow(){
+ show(`<section id="authorsPage" aria-labelledby="authorsTitle" style="line-height:1.6;overflow-wrap:anywhere">
+ <h2 id="authorsTitle">Авторы</h2>
+ <p>Главный автор и разработчик игры - <a class="author-whtqb" href="https://band.link/WHTQB" target="_blank" rel="noopener noreferrer" aria-label="WHTQB — открыть страницу в новой вкладке"><span>WHTQB</span></a></p>
+ <p>В игре использованы музыкальные композиции, распространяемые по свободной международной лицензии для коммерческого использования Creative Commons Attribution 4.0 International (CC BY 4.0).</p>
+ <p>Выражаем особую благодарность автору Kevin MacLeod (сайт источника: incompetech.com).</p>
+ <p>Использованные треки (Tracks used):</p>
+ <ul lang="en">
+ <li>"Joey's Formal Waltz - Unscented" Kevin MacLeod (incompetech.com)<br>
+ Licensed under Creative Commons: By Attribution 4.0 License<br>
+ http://creativecommons.org/licenses/by/4.0/</li>
+ <li>"OctoBlues" Kevin MacLeod (incompetech.com)<br>
+ Licensed under Creative Commons: By Attribution 4.0 License<br>
+ http://creativecommons.org/licenses/by/4.0/</li>
+ <li>"Hustle" Kevin MacLeod (incompetech.com)<br>
+ Licensed under Creative Commons: By Attribution 4.0 License<br>
+ http://creativecommons.org/licenses/by/4.0/</li>
+ <li>"Whiskey on the Mississippi" Kevin MacLeod (incompetech.com)<br>
+ Licensed under Creative Commons: By Attribution 4.0 License<br>
+ http://creativecommons.org/licenses/by/4.0/</li>
+ <li>"Nile's Blues" Kevin MacLeod (incompetech.com)<br>
+ Licensed under Creative Commons: By Attribution 4.0 License<br>
+ http://creativecommons.org/licenses/by/4.0/</li>
+ <li>"Slow Burn" Kevin MacLeod (incompetech.com)<br>
+ Licensed under Creative Commons: By Attribution 4.0 License<br>
+ http://creativecommons.org/licenses/by/4.0/</li>
+ <li>"Dirt Rhodes" Kevin MacLeod (incompetech.com)<br>
+ Licensed under Creative Commons: By Attribution 4.0 License<br>
+ http://creativecommons.org/licenses/by/4.0/</li>
+ <li>"DD Groove" Kevin MacLeod (incompetech.com)<br>
+ Licensed under Creative Commons: By Attribution 4.0 License<br>
+ http://creativecommons.org/licenses/by/4.0/</li>
+ <li>"Matt's Blues" Kevin MacLeod (incompetech.com)<br>
+ Licensed under Creative Commons: By Attribution 4.0 License<br>
+ http://creativecommons.org/licenses/by/4.0/</li>
+ <li>"Porch Blues" Kevin MacLeod (incompetech.com)<br>
+ Licensed under Creative Commons: By Attribution 4.0 License<br>
+ http://creativecommons.org/licenses/by/4.0/</li>
+ </ul>
+ <div class="actions"><button id="authorsBack" type="button">Назад</button></div>
+ </section>`);
+ $("#modal").classList.add("menu-background");
+ on("authorsBack",()=>{
+  menu();
+  $("#authors").focus({preventScroll:true});
+ });
+ $("#content").scrollTop=0;
+ $("#authorsBack").focus({preventScroll:true});
+}
 function menu(){
  setSoundtrackMenu(true);
  show(`<img class="main-menu-logo" src="gamelogo.png"
@@ -8204,6 +8617,7 @@ function menu(){
  <button id="load" type="button">Продолжить сохранённый</button>
  <button id="settings" type="button">Настройки</button>
  <button id="about" type="button">Об игре</button>
+ <button id="authors" type="button">Авторы</button>
  </nav>`);
  $("#modal").classList.add("main-menu");
  const seed=$("#seed");
@@ -8219,10 +8633,11 @@ function menu(){
   $("#settings").focus({preventScroll:true});
  }));
  on("about",aboutGameWindow);
+ on("authors",authorsWindow);
 }
 addEventListener("keydown",e=>{
  if(e.target.tagName==="INPUT")return;
- if(e.target instanceof Element&&e.target.closest("button")&&
+ if(paused&&e.target instanceof Element&&e.target.closest("button")&&
     (e.code==="Space"||e.code==="Enter"))return;
  if(e.code==="Tab"&&!e.ctrlKey&&!e.altKey&&!e.metaKey&&!e.shiftKey){
   const inventoryOpen=paused&&$("#inventoryRoot")&&
@@ -8240,6 +8655,11 @@ addEventListener("keydown",e=>{
  if(e.repeat)return;
  keys[e.code]=true;
  if(e.code==="Escape"){
+  if(paused&&$("#authorsPage")){
+   menu();
+   $("#authors").focus({preventScroll:true});
+   return;
+  }
   if(paused&&$("#aboutGame")){
    menu();
    $("#about").focus({preventScroll:true});
@@ -8248,7 +8668,8 @@ addEventListener("keydown",e=>{
   if(paused&&S&&!S.dead&&!S.between)closeModal();else pauseWindow();
   return;
  }
- if(!S||paused)return;
+ if(!S||paused||S.dead)return;
+ if(e.code==="Space"){startPlayerRoll();return}
  if(e.code==="KeyR")reload();
  if(e.code==="KeyQ")switchWeapon();
  if(e.code==="Digit1")switchWeapon(0);
@@ -9445,6 +9866,16 @@ drawActor = function(a, player = false) {
 
     const coat = player ? "#b7975c" : boss ? "#786d53" : t.color;
 
+    // Кувырок вокруг центра тела; тень остаётся на земле.
+    if(player&&playerRoll?.owner===S&&playerRoll.actor===a){
+      const progress=clamp(playerRoll.elapsed/CFG.rollSeconds,0,1);
+      const side=playerRoll.dx-playerRoll.dy<0?-1:1;
+      ctx.translate(0,-22);
+      ctx.rotate(side*progress*Math.PI*2);
+      ctx.scale(1,.8);
+      ctx.translate(0,22);
+    }
+
     // Ноги: анимация зависит от фактического перемещения.
 const now = performance.now() / 1000;
 
@@ -10193,7 +10624,151 @@ ctx.restore();
     );
   };
 
+  // Базовая интеграция Яндекс Игр. Без обязательной авторизации и рекламы.
+  const yandexBridge={
+    sdk:null,ready:false,playing:false,loading:false,language:"ru"
+  };
+
+  function applyYandexLanguage(sdk=null){
+    const raw=sdk?.environment?.i18n?.lang;
+    const language=typeof raw==="string"?raw.trim().toLowerCase():"";
+    const valid=/^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/.test(language);
+    yandexBridge.language=valid?language:"ru";
+    // Язык платформы доступен будущим словарям локализации.
+    // Атрибут lang остаётся ru, пока сами тексты интерфейса русские.
+    window.DUSTARD_I18N=Object.freeze({
+      language:yandexBridge.language,
+      source:valid?"yandex":"fallback"
+    });
+    document.documentElement.dataset.gameLanguage=yandexBridge.language;
+    window.dispatchEvent(new CustomEvent("dustard:languagechange",{
+      detail:window.DUSTARD_I18N
+    }));
+  }
+  applyYandexLanguage();
+
+  function syncYandexGameplay(){
+    const playing=Boolean(
+      S&&!paused&&!S.dead&&!S.between&&
+      !document.hidden&&document.hasFocus()
+    );
+    const api=yandexBridge.sdk?.features?.GameplayAPI;
+    if(!api||playing===yandexBridge.playing)return;
+    try{
+      if(playing)api.start();
+      else api.stop();
+      yandexBridge.playing=playing;
+    }catch(error){
+      console.warn("Яндекс Игры: событие геймплея недоступно",error);
+    }
+  }
+
+  function notifyYandexReady(){
+    if(yandexBridge.ready||!yandexBridge.sdk)return;
+    try{
+      const api=yandexBridge.sdk.features?.LoadingAPI;
+      if(!api)return;
+      api.ready();
+      yandexBridge.ready=true;
+      syncYandexGameplay();
+    }catch(error){
+      console.warn("Яндекс Игры: сигнал готовности недоступен",error);
+    }
+  }
+
+  function pauseForYandex(){
+    if(S&&!paused&&!S.dead){
+      show(`<h2>Пауза</h2>
+        <p>Игра приостановлена.</p>
+        <div class="actions">
+          <button id="yandexResumeButton">Продолжить</button>
+        </div>`);
+      on("yandexResumeButton",()=>{
+        void unlockSound();
+        closeModal();
+      });
+    }
+    syncYandexGameplay();
+  }
+
+  // Сохраняем существующую логику меню, звука и управления.
+  const showBeforeYandex=show;
+  show=function(...args){
+    const result=showBeforeYandex.apply(this,args);
+    syncYandexGameplay();
+    return result;
+  };
+  const closeBeforeYandex=closeModal;
+  closeModal=function(...args){
+    const result=closeBeforeYandex.apply(this,args);
+    syncYandexGameplay();
+    return result;
+  };
+  const dieBeforeYandex=die;
+  die=function(...args){
+    const result=dieBeforeYandex.apply(this,args);
+    syncYandexGameplay();
+    return result;
+  };
+
+  document.addEventListener("visibilitychange",()=>{
+    if(document.hidden)pauseForYandex();
+    else syncYandexGameplay();
+  });
+  addEventListener("blur",pauseForYandex);
+  addEventListener("focus",syncYandexGameplay);
+  addEventListener("pagehide",pauseForYandex);
+
+  async function initYandexSDK(){
+    if(yandexBridge.loading||yandexBridge.sdk)return;
+    // Файловый запуск не обращается к несуществующему /sdk.js.
+    if(location.protocol!=="https:"&&location.protocol!=="http:")return;
+    yandexBridge.loading=true;
+    try{
+      if(!window.YaGames){
+        await new Promise((resolve,reject)=>{
+          const script=document.createElement("script");
+          script.src="/sdk.js";
+          script.async=true;
+          const timer=setTimeout(()=>{
+            script.remove();
+            reject(new Error("Истекло время загрузки SDK"));
+          },15000);
+          script.onload=()=>{clearTimeout(timer);resolve()};
+          script.onerror=()=>{
+            clearTimeout(timer);
+            script.remove();
+            reject(new Error("SDK недоступен на этом сервере"));
+          };
+          document.head.appendChild(script);
+        });
+      }
+      if(!window.YaGames?.init)throw new Error("YaGames.init недоступен");
+      const sdk=await window.YaGames.init();
+      yandexBridge.sdk=sdk;
+      applyYandexLanguage(sdk);
+      if(typeof sdk.on==="function"){
+        sdk.on("game_api_pause",pauseForYandex);
+        sdk.on("game_api_resume",()=>{
+          // Возвращение платформы не снимает пользовательскую паузу.
+          syncSound();
+          syncYandexGameplay();
+        });
+      }
+      notifyYandexReady();
+    }catch(error){
+      // Отсутствие SDK не блокирует меню и локальную игру.
+      console.info("Запуск без SDK Яндекс Игр:",error);
+    }finally{
+      yandexBridge.loading=false;
+    }
+  }
+
   menu();
+  // Меню построено; даём браузеру возможность отрисовать его.
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{void initYandexSDK()});
+  });
 })();
 </script>
 </body>
