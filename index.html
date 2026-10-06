@@ -587,6 +587,12 @@ h3 {
   display: none;
 }
 
+body.annihilator-scoped #hud,
+body.annihilator-scoped #lowerHUD,
+body.annihilator-scoped #portalLabels {
+  display: none !important;
+}
+
 #portalLabels > span {
   position: absolute;
   transform: translate(-50%, -100%);
@@ -1584,7 +1590,7 @@ const CFG={
  barrelBlastRadius:4,barrelDamageFraction:.8,
  staminaMax:100,staminaDrain:20,staminaRegen:8,
  staminaDelay:2,sprintMultiplier:1.815,staminaRestart:.25,
- rollDistance:3.6,rollSeconds:.24,rollStaminaFraction:.5,
+ rollDistance:3.6,rollSeconds:.24,rollStaminaFraction:.25,
  healPrice:25,armorPrice:22,ammoPrice:12,
  medkitChance:.2,medkitHP:40,medkitSeconds:1,
  armorVestCells:2,armorVestSeconds:1,
@@ -1687,7 +1693,121 @@ const EFFECTS=[
  {name:"Рикошет · 1 от стены",adj:"Прыгучий",cost:.9},
  {name:"Коррозия · 6 урона/с, 3 с",adj:"Кислотный",cost:.9}
 ];
+const ANNIHILATORS=Object.freeze([
+ {name:"Аннигилятор «Разлом»",damage:480,range:32,speed:90,color:"#63efff"},
+ {name:"Аннигилятор «Сингулярность»",damage:620,range:26,speed:75,color:"#cf91ff"}
+]);
+function isAnnihilator(w){
+ // Индекс 2 принимается только для совместимости старых сохранений.
+ return Boolean(w&&Number.isInteger(w.annihilator)&&
+  w.annihilator>=0&&w.annihilator<=2);
+}
+function annihilatorType(w){
+ return w?.annihilator===1?1:0;
+}
+function weaponEffectLabel(w){
+ if(isAnnihilator(w)){
+  return annihilatorType(w)===1
+   ?"Фиолетовый: пробивание до точки прицела, затем рикошеты 2 с; опасен для героя"
+   :"Синий: пробивание до точки прицела, без рикошетов";
+ }
+ return EFFECTS[w?.effect]?.name||"Неизвестный";
+}
+function annihilatorWeapon(seed,level){
+ const variant=Math.floor(rng(seed)()*ANNIHILATORS.length),base=ANNIHILATORS[variant];
+ const rank=Number.isSafeInteger(level)&&level>0?level:1;
+ // Линейный рост от базы: прирост между уровнями никогда не превышает 2%.
+ const factor=1+.02*(rank-1);
+ return {
+  seed,level:rank,ci:8,mi:variant,bi:2,gi:2,rare:3,effect:0,
+  annihilator:variant,name:base.name,damage:base.damage*factor,rate:2*factor,
+  mag:3,ammo:3,reserve:9,reload:3/factor,spread:0,
+  speed:base.speed*factor,range:base.range*factor,pellets:1,
+  crit:Math.min(1,.08*factor),critPower:1.8*factor,
+  material:"Антиматериальный композит",price:Math.round(280*factor)
+ };
+}
+function normalizeAnnihilator(w){
+ if(!isAnnihilator(w))return;
+ if(w.annihilator===2){
+  // Меняем тип, но сохраняем уровень, боезапас и приобретённые характеристики.
+  w.annihilator=0;
+  if(w.name==="Аннигилятор «Горизонт»")w.name=ANNIHILATORS[0].name;
+  weaponArtCache.delete(w);
+ }
+ w.mag=3;
+ w.ammo=Number.isFinite(w.ammo)?clamp(Math.floor(w.ammo),0,3):0;
+ w.reserve=Number.isFinite(w.reserve)?clamp(Math.floor(w.reserve),0,9):0;
+}
+function addWeaponReserve(w,amount){
+ if(!w||!Number.isFinite(amount)||amount<=0)return;
+ normalizeAnnihilator(w);
+ w.reserve=isAnnihilator(w)?Math.min(9,w.reserve+Math.floor(amount)):w.reserve+amount;
+}
+function playerReloadSeconds(w){
+ return isAnnihilator(w)?w.reload:w.reload*Math.pow(.85,S.up.reload||0);
+}
+let annihilatorScope=null;
+let annihilatorAimHint=null;
+function drawAnnihilatorAimHint(){
+ const hint=annihilatorAimHint;
+ if(!hint)return;
+ if(!S||paused||S.dead||S.between||hint.owner!==S||
+    hint.map!==S.map||hint.weapon!==activeWeapon()||annihilatorScoped()){
+  annihilatorAimHint=null;
+  return;
+ }
+ if(!mouse.down)hint.latched=false;
+ const age=(performance.now()-hint.born)/1000;
+ if(age>=1)return;
+ const label="Прицелься на ПКМ!";
+ ctx.save();
+ ctx.font="bold 20px system-ui";
+ ctx.textAlign="center";ctx.textBaseline="middle";
+ const half=ctx.measureText(label).width/2+8;
+ const x=clamp(mouse.x+Math.sin(age*95)*4,half,Math.max(half,W-half));
+ const y=clamp(mouse.y-32+Math.sin(age*127)*3,18,Math.max(18,H-18));
+ ctx.globalAlpha=clamp((1-age)/.15,0,1);
+ ctx.lineJoin="round";ctx.lineWidth=4;ctx.strokeStyle="#250b08";
+ ctx.strokeText(label,x,y);
+ ctx.fillStyle="#ff3838";ctx.fillText(label,x,y);
+ ctx.restore();
+}
+function annihilatorScoped(){
+ return Boolean(S&&!paused&&!S.dead&&!S.between&&
+  annihilatorScope?.owner===S&&annihilatorScope.map===S.map&&
+  annihilatorScope.weapon===activeWeapon()&&isAnnihilator(activeWeapon()));
+}
+function gameCameraZoom(){
+ return CFG.cameraZoom/(annihilatorScoped()?1.3:1);
+}
+function drawAnnihilatorScope(){
+ if(!annihilatorScoped())return;
+ const w=activeWeapon(),radius=Math.min(150,W*.19,H*.19),x=mouse.x,y=mouse.y;
+ const color=ANNIHILATORS[annihilatorType(w)].color;
+ ctx.save();ctx.globalAlpha=1;ctx.fillStyle="#000";
+ ctx.beginPath();ctx.rect(0,0,W,H);ctx.moveTo(x+radius,y);
+ ctx.arc(x,y,radius,0,Math.PI*2);ctx.fill("evenodd");
+ ctx.strokeStyle=color;ctx.lineWidth=2;
+ ctx.beginPath();ctx.arc(x,y,radius-3,0,Math.PI*2);ctx.stroke();
+ ctx.lineWidth=1;ctx.beginPath();
+ for(let i=0;i<32;i++){
+  const a=i*Math.PI/16,inner=radius-(i%4===0?18:9);
+  ctx.moveTo(x+Math.cos(a)*inner,y+Math.sin(a)*inner);
+  ctx.lineTo(x+Math.cos(a)*(radius-5),y+Math.sin(a)*(radius-5));
+ }
+ for(const side of [-1,1]){
+  ctx.moveTo(x+side*10,y);ctx.lineTo(x+side*(radius-25),y);
+  ctx.moveTo(x,y+side*10);ctx.lineTo(x,y+side*(radius-25));
+ }
+ ctx.stroke();ctx.strokeRect(x-7,y-7,14,14);
+ ellipse(x,y,1.5,1.5,"#fff");
+ text("АНТИМАТЕРИЯ · ОБЗОР +30%",x,y-radius+34,10,color);
+ text(S.p.reload>0?"ПЕРЕЗАРЯДКА":`${w.ammo}/3 · ${w.reserve}/9`,x,y+radius-28,12,color);
+ ctx.restore();
+}
 function weaponShotKind(w){
+ if(isAnnihilator(w))return "annihilator";
  return w?.ci===8?"laser":w?.ci===9?"flame":w?.ci===10?"acid":
   w?.ci===11?"sludge":w?.ci===12?"vomit":"";
 }
@@ -1894,8 +2014,21 @@ function equipEnemy(e,state=S){
 
 const weaponArtCache=new WeakMap();
 function weaponArt(w){
+ normalizeAnnihilator(w);
  let art=weaponArtCache.get(w);
  if(art)return art;
+ if(isAnnihilator(w)){
+  const variant=annihilatorType(w),color=ANNIHILATORS[variant].color,length=[44,48][variant];
+  const grip="M-17 -6L-4 -3V4L-17 8ZM-1 5H6V17H-1Z";
+  const body="M-8 -9H17L24 -5V6L15 10H-8ZM5 10H15V17H5Z";
+  const metal=`M17 -6H${length}V-3H17ZM17 3H${length}V6H17ZM2 -16H17V-12H2ZM${length-3} -9H${length+2}V9H${length-3}Z`;
+  let trim=`M-5 -6H12V-3H-5ZM-5 2H12V5H-5ZM${length-1} -6H${length+1}V6H${length-1}Z`;
+  for(let x=20;x<length-4;x+=6-variant)trim+=`M${x} -8h2v16h-2Z`;
+  art={name:"Рельсовый излучатель",bodyColor:"#303e50",gripColor:"#586375",
+   accent:color,muzzleLength:length+2,body,metal,grip,trim,
+   paths:[new Path2D(grip),new Path2D(metal),new Path2D(body),new Path2D(trim)]};
+  weaponArtCache.set(w,art);return art;
+ }
  // Отдельный seed внешности не меняет характеристики оружия.
  const seed=hash(String(w.seed)+":finish:v1");
  const finishes=[
@@ -2067,10 +2200,14 @@ function staminaStats(up){
   regen:CFG.staminaRegen*(1+.25*(up.dash||0))
  };
 }
-function stepStamina(p,up,elapsed,wantsSprint,shiftHeld){
+function stepStamina(p,up,elapsed,wantsSprint,shiftHeld,crouching=false){
  const stats=staminaStats(up);
  const dt=Number.isFinite(elapsed)?Math.max(0,elapsed):0;
  if(dt===0)return 0;
+ if(crouching){
+  stats.regen*=1.8;
+  wantsSprint=false;
+ }
 
  if(p.exhausted&&!shiftHeld&&p.stamina>=stats.max*CFG.staminaRestart){
   p.exhausted=false;
@@ -2157,7 +2294,7 @@ function resize(){
  // На первом resize мышь ещё не создана, но canvasPointer равен null.
  if(canvasPointer){
   updateCanvasPointer(canvasPointer.x,canvasPointer.y);
-  mouse.down=false;
+  mouse.down=false;annihilatorScope=null;
  }
 }
 addEventListener("resize",resize);resize();
@@ -2232,6 +2369,10 @@ try{meta={...meta,...JSON.parse(localStorage.getItem("prism-meta")||"{}")};
 settings={...settings,...JSON.parse(localStorage.getItem("prism-settings")||"{}")}}catch{}
 let S=null,paused=true,keys={},mouse={x:W/2,y:H/2,down:false};
 let playerRoll=null;
+function playerCrouching(){
+ return Boolean(S&&!paused&&!S.dead&&!S.between&&S.p.hp>0&&
+  !playerRoll&&!S.p.knockback&&(keys.ControlLeft||keys.ControlRight));
+}
 let camera={x:0,y:0},shake=0,shotShake=0,toastTimer=0,saveTimer=0,pathTimer=0,field=[];
 let audio=null,aim={x:1,y:0},lastTime=performance.now();
 const soundRandom=rng(0xA71D105);
@@ -2246,7 +2387,7 @@ let ambientSource=null,footstepStates=new WeakMap(),footstepMap=null;
 const soundTargets=new WeakMap();
 const soundVariants=new Map();
 const SOUND_NAMES=[
- "knife_swing","knife_hit","coin_pickup",
+ "knife_swing","knife_hit","coin_pickup","annihilator",
  ...SHOT_SOUNDS,"reload_start","reload_end","barrel_explosion","crate_break",
  "step_sand","step_road","player_step_sand","player_step_road","ambience"
 ];
@@ -2385,6 +2526,45 @@ function encodeSoundWav(channels,sampleRate=22050){
 }
 function synthesizeSound(name,variant=0){
  const sr=22050,r=rng(hash("dust-wav-v1:"+name+":"+variant));
+ if(name==="annihilator"){
+  // Басовый удар, спадающий энергетический тон и пространственный хвост.
+  const duration=1.25,length=Math.ceil(duration*sr);
+  const dry=new Float32Array(length),rumble=new Float32Array(length);
+  let low=0,deep=0,phase=0,bass=0;
+  const pitch=.9+variant*.1;
+  for(let i=0;i<length;i++){
+   const t=i/sr,noise=r()*2-1;
+   low+=.075*(noise-low);
+   deep+=.012*(noise-deep);
+   phase+=2*Math.PI*(125+2700*Math.exp(-t*13))*pitch/sr;
+   bass+=2*Math.PI*(36+125*Math.exp(-t*20))*pitch/sr;
+   const attack=Math.min(1,t/.003),release=clamp((duration-t)/.18,0,1);
+   const crack=(noise-low)*1.1*Math.exp(-t*70);
+   const impact=low*3.2*Math.exp(-t*9)+
+    (Math.sin(bass)+.3*Math.sin(bass*2))*.95*Math.exp(-t*6);
+   const energy=(Math.sin(phase)+.3*Math.sin(phase*2.01)+
+    .15*Math.sin(phase*3.97))*.65*Math.exp(-t*5);
+   dry[i]=Math.tanh((crack+impact+energy)*1.5)*attack*release*.72;
+   rumble[i]=deep*2.2*Math.exp(-t*3)*attack*release;
+  }
+  const channels=[new Float32Array(length),new Float32Array(length)];
+  for(let ch=0;ch<2;ch++){
+   const taps=ch===0?[[.09,.27],[.23,.17],[.41,.1]]:
+    [[.13,.27],[.29,.17],[.47,.1]];
+   const delays=taps.map(([seconds,gain])=>[Math.round(seconds*sr),gain]);
+   let echo=0;
+   for(let i=0;i<length;i++){
+    let reflected=0;
+    for(const [delay,gain] of delays){
+     if(i>=delay)reflected+=dry[i-delay]*gain;
+    }
+    echo+=.22*(reflected-echo);
+    const fade=clamp((length-1-i)/(sr*.18),0,1);
+    channels[ch][i]=Math.tanh((dry[i]+rumble[i]+echo)*1.15)*.92*fade;
+   }
+  }
+  return encodeSoundWav(channels,sr);
+ }
  if(name==="sludge"||name==="vomit"){
   const stream=name==="vomit",duration=stream?.19:.34;
   const data=new Float32Array(Math.ceil(duration*sr));
@@ -2854,6 +3034,9 @@ function playWav(name,{volume=1,rate=1,actor=null,step=false}={}){
  source.start();
 }
 function playPlayerShot(w){
+ if(isAnnihilator(w)){
+  playWav("annihilator",{volume:1.5,rate:.9+annihilatorType(w)*.1});return;
+ }
  const name=SHOT_SOUNDS[w.ci]||SHOT_SOUNDS[0];
  playWav(name,{
   volume:isStreamWeapon(w)?.5:.85,
@@ -2999,6 +3182,8 @@ function save(){
 }
 let inventoryCleanup=null;
 function show(html){
+ annihilatorScope=null;
+ document.body.classList.remove("annihilator-scoped");
  deathSequence=null;
  playerRoll=null;
  $("#modal").classList.remove("main-menu","menu-background");
@@ -3146,6 +3331,7 @@ function drawDonkey(e){
  }
  drawActorStains(e);
  ctx.restore();
+ if(annihilatorScoped())return;
  const top=p.y-92*scale;
  ctx.fillStyle="#332a22";ctx.fillRect(p.x-61,top,122,8);
  ctx.fillStyle="#ad543c";ctx.fillRect(p.x-60,top+1,120*clamp(e.hp/e.max,0,1),6);
@@ -3301,6 +3487,7 @@ function drawMutant(e){
  ctx.beginPath();ctx.moveTo(-5,-28);ctx.lineTo(4,-20);ctx.stroke();
  drawActorStains(e);
  ctx.restore();
+ if(annihilatorScoped())return;
  const top=p.y-51*scale;
  if(e.hp<e.max){
   ctx.fillStyle="#332a22";ctx.fillRect(p.x-25,top,50,5);
@@ -3320,6 +3507,7 @@ function drawDonkeyPellet(b,z=19){
  ctx.restore();
 }
 function buildLevel(){
+ annihilatorScope=null;
  playerRoll=null;
  stopGameSounds();
  delete S.houseWorld;
@@ -3426,21 +3614,31 @@ function reveal(){
    if(x>=0&&y>=0&&x<m.n&&y<m.n&&Math.hypot(x+.5-p.x,y+.5-p.y)<4.5)
     m.seen[y*m.n+x]=true;
 }
-const activeWeapon=()=>S.p.weapons[S.p.slot];
+const activeWeapon=()=>{
+ const w=S.p.weapons[S.p.slot];
+ normalizeAnnihilator(w);
+ return w;
+};
 function reload(){
  const p=S.p,w=activeWeapon();
  if (w && p.reload <= 0 && w.ammo < w.mag && w.reserve > 0) {
-  p.reload=w.reload*Math.pow(.85,S.up.reload||0);
+  p.reload=playerReloadSeconds(w);
   getCombatVisuals().reloads.set(p,{weapon:w,total:p.reload});
   playWav("reload_start",{volume:.85,rate:w.ci===6?.85:1});
  }
 }
 function switchWeapon(slot){
  if(!S||paused)return;
+ annihilatorScope=null;
  cancelKnifeAttack();
  S.p.slot=slot??(1-S.p.slot);S.p.reload=0;S.p.shot=.15;
 }
-function refill(w,n){if(!w)return;const take=Math.min(n,w.mag-w.ammo,w.reserve);w.ammo+=take;w.reserve-=take}
+function refill(w,n){
+ if(!w||!Number.isFinite(n)||n<=0)return;
+ normalizeAnnihilator(w);
+ const take=Math.max(0,Math.min(n,w.mag-w.ammo,w.reserve));
+ w.ammo+=take;w.reserve-=take;
+}
 function normalizeStamina(state){
  if(state===S)playerRoll=null;
  const p=state.p,stats=staminaStats(state.up);
@@ -3454,7 +3652,8 @@ function normalizeStamina(state){
 }
 function updatePlayerAim(){
  const cursor=cameraInputPoint(mouse.x,mouse.y);
- const screenDX=cursor.x-(W/2+4),screenDY=cursor.y-(H/2-22);
+ const screenDX=cursor.x-(W/2+4);
+ const screenDY=cursor.y-(H/2-22+(playerCrouching()?10:0));
  const aimX=screenDX/64+screenDY/32,aimY=-screenDX/64+screenDY/32;
  const aimLength=Math.hypot(aimX,aimY);
  if(aimLength>1e-6)aim={x:aimX/aimLength,y:aimY/aimLength};
@@ -3465,17 +3664,28 @@ function startPlayerRoll(){
  if(!(p.hp>0)||p.knockback||p.heal>0||p.armorRepair>0)return;
  const cost=staminaStats(S.up).max*CFG.rollStaminaFraction;
  if(!Number.isFinite(p.stamina)||p.stamina+1e-8<cost){
-  toast("Для переката нужно 50% максимальной выносливости");
+  toast(`Для переката нужно ${CFG.rollStaminaFraction*100}% максимальной выносливости`);
   return;
  }
- // Направление берётся по текущему курсору и фиксируется до конца переката.
- updatePlayerAim();
+ // Используем направление движения WASD и фиксируем его до конца переката.
+ const sx=(keys.KeyD?1:0)-(keys.KeyA?1:0);
+ const sy=(keys.KeyS?1:0)-(keys.KeyW?1:0);
+ let dx=sx+sy,dy=sy-sx;
+ const length=Math.hypot(dx,dy);
+ if(length>0){
+  dx/=length;dy/=length;
+ }else{
+  // Противоположные клавиши взаимно гасятся: не тратим выносливость.
+  if(keys.KeyW||keys.KeyA||keys.KeyS||keys.KeyD)return;
+  updatePlayerAim();
+  dx=aim.x;dy=aim.y;
+ }
  p.stamina=Math.max(0,p.stamina-cost);
  if(p.stamina<1e-8){p.stamina=0;p.exhausted=true}
  p.staminaWait=CFG.staminaDelay;
  p.sprinting=false;
  cancelKnifeAttack();
- playerRoll={owner:S,actor:p,map:S.map,dx:aim.x,dy:aim.y,elapsed:0};
+ playerRoll={owner:S,actor:p,map:S.map,dx,dy,elapsed:0};
 }
 function stepPlayerRoll(dt){
  const roll=playerRoll;
@@ -3520,7 +3730,8 @@ function muzzlePosition(actor,angle,w=null){
  const norm=Math.hypot(sx,sy)||1;
  const ox=(4+sx/norm*length)*scale;
  // Пули рисуются на высоте 19: переводим экранный срез ствола в эту плоскость.
- const oy=(-22+sy/norm*length)*scale+19;
+ const crouchOffset=actor===S.p&&playerCrouching()?10:0;
+ const oy=(-22+sy/norm*length)*scale+19+crouchOffset;
  return {x:actor.x+ox/64+oy/32,y:actor.y-ox/64+oy/32};
 }
 function selectKnifeTarget(hero,direction,enemies,clear){
@@ -3612,13 +3823,51 @@ function shoot(){
  if(!S||paused||S.dead||S.between)return;
  const p=S.p,w=activeWeapon();
  if(!w){stabKnife();return}
- if (p.reload > 0 || p.shot > 0) return;
+ if(isAnnihilator(w)){
+  if(!annihilatorScoped()){
+   if(!annihilatorAimHint?.latched||annihilatorAimHint.owner!==S||
+      annihilatorAimHint.map!==S.map||annihilatorAimHint.weapon!==w){
+    annihilatorAimHint={owner:S,map:S.map,weapon:w,born:performance.now(),latched:true};
+   }
+   return;
+  }
+  annihilatorAimHint=null;
+  if(S.bullets.length>=700)return;
+ }
+ if (p.reload > 0 || p.shot > 1e-8) return;
  if(w.ammo<=0){reload();return}
  w.ammo--;p.shot=1/w.rate;
  boostEnemyDetectionFromShot();
  const angle=Math.atan2(aim.y,aim.x),muzzle=muzzlePosition(p,angle,w);
+ if(isAnnihilator(w)){
+  // Курсор переводится в плоскость полёта z=19; камера могла ещё не отрисоваться.
+  const cursor=cameraInputPoint(mouse.x,mouse.y);
+  const sx=cursor.x-W/2,sy=cursor.y-H/2+19;
+  const target={x:p.x+sx/64+sy/32,y:p.y-sx/64+sy/32};
+  const distance=dist(muzzle,target);
+  const shotAngle=distance>1e-8?Math.atan2(target.y-muzzle.y,target.x-muzzle.x):angle;
+  const ux=Math.cos(shotAngle),uy=Math.sin(shotAngle);
+  let flight=Math.min(w.range,Math.max(.001,distance));
+  // Внешнюю границу не пробиваем: иначе рикошеты начались бы вне карты.
+  for(const [at,direction] of [[muzzle.x,ux],[muzzle.y,uy]]){
+   if(Math.abs(direction)>1e-10){
+    const edge=direction>0?S.map.n-1.081:1.081;
+    const limit=(edge-at)/direction;
+    if(limit>0)flight=Math.min(flight,limit);
+   }
+  }
+  projectile(muzzle.x,muzzle.y,shotAngle,w.speed,w.damage,false,{
+   shotKind:"annihilator",shotColor:ANNIHILATORS[annihilatorType(w)].color,
+   canRicochet:annihilatorType(w)===1,
+   life:flight/w.speed,remaining:flight,totalRange:flight,
+   origin:{...muzzle},hitIds:[],lastCell:-1,debrisCount:0,
+   crit:Math.random()<w.crit,critPower:w.critPower
+  });
+  shotShake=Math.max(shotShake,3);playPlayerShot(w);emitShotVisual(p,w);return;
+ }
+ const spread=w.spread*(playerCrouching()?.5:1);
  for(let i=0;i<w.pellets;i++)
-  projectile(muzzle.x,muzzle.y,angle+(Math.random()-.5)*w.spread*2,w.speed,w.damage,false,
+  projectile(muzzle.x,muzzle.y,angle+(Math.random()-.5)*spread*2,w.speed,w.damage,false,
    {...weaponShotExtra(w),
     launch:{x:p.x,y:p.y},
     crit:Math.random()<w.crit+(S.up.crit||0)*.06,critPower:w.critPower});
@@ -3633,7 +3882,7 @@ function getCombatVisuals(){
  if(!S)return null;
  if(!combatVisuals||combatVisuals.owner!==S||combatVisuals.map!==S.map){
   combatVisuals={
-   owner:S,map:S.map,time:0,particles:[],fineBlood:[],explosions:[],bulletDrops:[],
+   owner:S,map:S.map,time:0,particles:[],fineBlood:[],explosions:[],bulletDrops:[],beams:[],
    actors:new WeakMap(),reloads:new WeakMap()
   };
  }
@@ -3671,7 +3920,8 @@ function emitShotVisual(actor,w=null){
  const shell=w&&(w.ci===2||w.ci===7);
  addCombatParticle({
   kind:"shell",x:actor.x+.0625*scale,y:actor.y-.0625*scale,
-  z:22*scale,vx:Math.cos(direction)*speed,vy:Math.sin(direction)*speed,
+  z:22*scale-(actor===S.p&&playerCrouching()?10:0),
+  vx:Math.cos(direction)*speed,vy:Math.sin(direction)*speed,
   vz:35+combatRandom()*25,life:3,size:shell?5:3.5,
   color:shell?"#b86439":"#d7b45b"
  });
@@ -3823,6 +4073,14 @@ function emitEnemyBreakup(e){
 function emitBulletDrop(b){
  const state=getCombatVisuals();
  if(!state)return;
+ if(b.shotKind==="annihilator"){
+  if(state.beams.length>=32)state.beams.shift();
+  state.beams.push({
+   origin:{...b.origin},x:b.x,y:b.y,shotColor:b.shotColor,born:state.time,
+   trail:Array.isArray(b.trail)?b.trail.map(p=>({x:p.x,y:p.y})):null
+  });
+  return;
+ }
  const drops=state.bulletDrops;
  if(drops.length>=700)drops.shift();
  const style=specialShotStyle(b);
@@ -3926,6 +4184,7 @@ function updateCombatVisuals(dt){
  const state=getCombatVisuals();
  if(!state)return;
  state.time+=dt;
+ state.beams=state.beams.filter(beam=>state.time-beam.born<.25);
  updateKnifeAttack(state);
  let blastWrite=0;
  for(const blast of state.explosions){
@@ -4081,7 +4340,41 @@ function emitSpecialImpact(b){
   });
  }
 }
+function drawAnnihilatorBeams(){
+ const state=getCombatVisuals();
+ if(!state)return;
+ const strength=soundLevel("flash",.5);
+ const drawBeam=(beam,fade)=>{
+  if(!beam.origin)return;
+  const a=project(beam.origin.x,beam.origin.y,19),b=project(beam.x,beam.y,19);
+  const color=ANNIHILATORS.some(v=>v.color===beam.shotColor)?beam.shotColor:"#63efff";
+  ctx.save();ctx.lineCap="round";ctx.lineJoin="round";
+  ctx.beginPath();
+  if(beam.trail?.length){
+   for(let i=0;i<beam.trail.length;i++){
+    const point=project(beam.trail[i].x,beam.trail[i].y,19);
+    if(i===0)ctx.moveTo(point.x,point.y);
+    else ctx.lineTo(point.x,point.y);
+   }
+   ctx.lineTo(b.x,b.y);
+  }else{
+   ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);
+  }
+  for(const [width,opacity] of [[40,.14*strength],[20,.4*strength],[8,1]]){
+   ctx.globalAlpha=fade*opacity;ctx.lineWidth=width;ctx.strokeStyle=color;ctx.stroke();
+  }
+  ctx.globalAlpha=fade;ctx.lineWidth=3;ctx.strokeStyle="#fff";ctx.stroke();
+  if(strength>0){
+   ctx.globalAlpha=fade*strength;ctx.strokeStyle=color;ctx.lineWidth=3;
+   ctx.beginPath();ctx.ellipse(b.x,b.y,16,16,0,0,Math.PI*2);ctx.stroke();
+  }
+  ctx.restore();
+ };
+ for(const b of S.bullets)if(b.shotKind==="annihilator")drawBeam(b,1);
+ for(const beam of state.beams)drawBeam(beam,clamp(1-(state.time-beam.born)/.25,0,1));
+}
 function drawSpecialProjectile(b){
+ if(b.shotKind==="annihilator")return true;
  const kind=b.shotKind,style=specialShotStyle(b);
  if(!style.special)return false;
  const z=b.vaporDuration>0?b.z:19;
@@ -4170,7 +4463,8 @@ function drawMuzzleVisual(actor,gx,gy,length){
  const reach=(actor.boss?30:22)*(visual.weapon?.pellets>1?1.35:1);
  ctx.scale(.7+.3*fade,.75+.25*fade);
  const kind=weaponShotKind(visual.weapon);
- const color=kind==="laser"?laserColor(visual.weapon):
+ const color=kind==="annihilator"?ANNIHILATORS[annihilatorType(visual.weapon)].color:
+  kind==="laser"?laserColor(visual.weapon):
   kind==="acid"?"#a5ed43":kind==="sludge"?"#936335":
   kind==="vomit"?"#a9d54d":"#f28b2b";
  ctx.shadowColor=color;
@@ -4225,7 +4519,7 @@ function drawArmorVests(items=null){
  ctx.restore();
 }
 function drawHealingStatus(){
- if(!S||S.dead||!(S.p.heal>0||S.p.armorRepair>0))return;
+ if(!S||S.dead||annihilatorScoped()||!(S.p.heal>0||S.p.armorRepair>0))return;
  const label=S.p.armorRepair>0?"Восстанавливаю броню":"Лечусь";
  const p=project(S.p.x,S.p.y,66);
  ctx.save();
@@ -4242,7 +4536,7 @@ function drawHealingStatus(){
  ctx.restore();
 }
 function drawReloadProgress(){
- if(!S||S.dead||!(S.p.reload>0))return;
+ if(!S||S.dead||annihilatorScoped()||!(S.p.reload>0))return;
  const p=S.p,w=activeWeapon(),state=getCombatVisuals();
  if(!w)return;
  const tracked=state.reloads.get(p);
@@ -4448,7 +4742,7 @@ function killEnemy(e,playerCredit=true){
  const droppedWeapon=equipEnemy(e);
  if(droppedWeapon)S.loot.push({x:e.x,y:e.y,w:droppedWeapon});
  if(playerCredit&&Math.random()<.4){
-  for(const w of S.p.weapons)if(w)w.reserve+=Math.ceil(w.mag*.5);
+  for(const w of S.p.weapons)if(w)addWeaponReserve(w,Math.ceil(w.mag*.5));
  }
  if(Math.random()<CFG.medkitChance){
   S.medkits.push({x:e.x,y:e.y});
@@ -4457,6 +4751,7 @@ function killEnemy(e,playerCredit=true){
 let deathSequence=null;
 function die(){
  if(!S||S.dead)return;
+ annihilatorScope=null;
  S.dead=true;meta.best=Math.max(meta.best,S.level);persistMeta();
  try{localStorage.removeItem("prism-save")}catch{}
  paused=true;keys={};mouse.down=false;
@@ -4806,10 +5101,11 @@ function patrolEnemy(e,t,dt){
 }
 function npcSpawnOutsideView(point,hero,width=W,height=H){
  const dx=point.x-hero.x,dy=point.y-hero.y;
- const x=(dx-dy)*32*CFG.cameraZoom+width/2;
- const y=(dx+dy)*16*CFG.cameraZoom+height/2;
+ const zoom=gameCameraZoom();
+ const x=(dx-dy)*32*zoom+width/2;
+ const y=(dx+dy)*16*zoom+height/2;
  // Запас учитывает увеличенный силуэт, оружие и тряску камеры.
- const margin=96*CFG.cameraZoom;
+ const margin=96*zoom;
  return x < -margin || x > width+margin ||
   y < -margin || y > height+margin;
 }
@@ -5171,12 +5467,287 @@ function enemyBulletContact(e,b,ox,oy){
  }
  return Infinity;
 }
+function damageProp(obj,damage,b){
+ if(!(obj.hp>0)||!Number.isFinite(damage)||damage<=0)return;
+ obj.hp-=damage;
+ if(obj.hp>0)return;
+ playWav(obj.kind==="barrel"?"barrel_explosion":"crate_break",{
+  volume:obj.kind==="barrel"?1.68:.9,actor:{x:obj.x,y:obj.y}
+ });
+ burst(obj.x,obj.y,obj.kind==="barrel"?"#ffb444":"#b987dd",20);
+ if(obj.kind==="barrel"){
+  shake=10;emitBarrelExplosion(obj);
+  for(const e of S.enemies){
+   if(e.hp>0&&dist(e,obj)<=CFG.barrelBlastRadius){
+    hitEnemy(e,e.max*CFG.barrelDamageFraction,0,
+     {x:e.x-obj.x,y:e.y-obj.y},b.npcRetaliation===true?b:null);
+   }
+  }
+  if(dist(S.p,obj)<=CFG.barrelBlastRadius){
+   damagePlayer(S.p.max*CFG.barrelDamageFraction,{x:S.p.x-obj.x,y:S.p.y-obj.y});
+  }
+ }else if(b.npcRetaliation!==true)S.money+=3;
+}
+function emitAnnihilatorDebris(b,wood=false){
+ if(soundLevel("flash",.5)===0||b.debrisCount>=24)return;
+ b.debrisCount++;
+ for(let i=0;i<6;i++){
+  const angle=combatRandom()*Math.PI*2,speed=1+combatRandom()*2.5;
+  addCombatParticle({
+   kind:i<4?"debris":"dust",x:b.x,y:b.y,z:19,
+   vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,vz:20+combatRandom()*45,
+   life:.5+combatRandom()*.7,size:i<4?2+combatRandom()*3:4+combatRandom()*3,
+   height:2+combatRandom()*4,
+   color:wood?(i%2?"#b89461":"#735238"):(i%2?"#d5ccba":"#948e82")
+  });
+ }
+}
+function annihilatorBoxContact(b,dx,dy,left,top,right,bottom){
+ let enter=-Infinity,exit=Infinity,nx=0,ny=0;
+ for(const [at,delta,min,max,ax,ay] of [
+  [b.x,dx,left,right,1,0],[b.y,dy,top,bottom,0,1]
+ ]){
+  if(Math.abs(delta)<1e-12){
+   if(at<min||at>max)return null;
+   continue;
+  }
+  const t1=(min-at)/delta,t2=(max-at)/delta;
+  const near=Math.min(t1,t2),far=Math.max(t1,t2);
+  const sign=delta>0?-1:1;
+  if(near>enter+1e-9){
+   enter=near;nx=ax*sign;ny=ay*sign;
+  }else if(Math.abs(near-enter)<=1e-9){
+   nx+=ax*sign;ny+=ay*sign;
+  }
+  exit=Math.min(exit,far);
+  if(enter>exit+1e-9)return null;
+ }
+ if(enter< -1e-8||enter>1||exit<0)return null;
+ // Одновременный удар в две грани разворачивает обе компоненты.
+ if(nx&&ny){
+  const length=Math.hypot(dx,dy);
+  nx=-dx/length;ny=-dy/length;
+ }
+ if(dx*nx+dy*ny>=-1e-12)return null;
+ return {t:Math.max(0,enter),nx,ny};
+}
+function annihilatorCircleContact(b,dx,dy,center,radius){
+ const x=b.x-center.x,y=b.y-center.y;
+ const a=dx*dx+dy*dy,c=x*x+y*y-radius*radius;
+ if(a<1e-16||c< -1e-7)return null;
+ const dot=x*dx+y*dy,discriminant=dot*dot-a*c;
+ if(dot>=0||discriminant<0)return null;
+ const t=(-dot-Math.sqrt(discriminant))/a;
+ if(t< -1e-7||t>1)return null;
+ const contact=Math.max(0,t);
+ const nx=x+dx*contact,ny=y+dy*contact,length=Math.hypot(nx,ny);
+ if(length<1e-10)return null;
+ return {t:contact,nx:nx/length,ny:ny/length};
+}
+function annihilatorNPCNormal(e,b,x,y,dx,dy){
+ // Нормаль подробного силуэта, включая оружие, в координатах мира.
+ let nx=0,ny=0;
+ for(let i=0;i<16;i++){
+  const angle=i*Math.PI/8,ux=Math.cos(angle),uy=Math.sin(angle);
+  const px=x+ux*.04,py=y+uy*.04;
+  if(!Number.isFinite(enemyBulletContact(e,{...b,x:px,y:py},px,py))){
+   nx+=ux;ny+=uy;
+  }
+ }
+ const length=Math.hypot(nx,ny);
+ if(length>1e-8&&(nx*dx+ny*dy)/length< -1e-8){
+  return {nx:nx/length,ny:ny/length};
+ }
+ const travel=Math.hypot(dx,dy);
+ return {nx:-dx/travel,ny:-dy/travel};
+}
+function annihilatorRicochetContact(b,dx,dy){
+ const m=S.map,radius=.08;
+ let best=null;
+ const consider=(hit,kind,obj=null)=>{
+  if(!hit)return;
+  if(!best||hit.t<best.t-1e-8)best={...hit,kind,obj};
+  else if(kind==="wall"&&best.kind==="wall"&&
+          Math.abs(hit.t-best.t)<=1e-8&&
+          Math.abs(hit.nx*best.ny-hit.ny*best.nx)>.5){
+   const length=Math.hypot(dx,dy);
+   best.nx=-dx/length;best.ny=-dy/length;
+  }
+ };
+ // Если точка прицела внутри стены, даём выйти из её толщи без телепортации.
+ if(b.escapingSolid&&valid(b.x,b.y,radius))b.escapingSolid=false;
+ if(!b.escapingSolid){
+  const minX=Math.max(0,Math.floor(Math.min(b.x,b.x+dx)-radius));
+  const maxX=Math.min(m.n-1,Math.floor(Math.max(b.x,b.x+dx)+radius));
+  const minY=Math.max(0,Math.floor(Math.min(b.y,b.y+dy)-radius));
+  const maxY=Math.min(m.n-1,Math.floor(Math.max(b.y,b.y+dy)+radius));
+  for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
+   if(m.tiles[y*m.n+x]!==0){
+    consider(annihilatorBoxContact(b,dx,dy,
+     x-radius,y-radius,x+1+radius,y+1+radius),"wall");
+   }
+  }
+ }
+ // Ограждение действует и при выходе из толщи стены.
+ for(const [at,delta,nx,ny] of [[b.x,dx,1,0],[b.y,dy,0,1]]){
+  if(Math.abs(delta)<1e-12)continue;
+  const edge=delta>0?m.n-radius:radius;
+  const t=(edge-at)/delta;
+  if(t>=0&&t<=1)consider({t,nx:delta>0?-nx:nx,ny:delta>0?-ny:ny},"wall");
+ }
+ for(const obj of S.props){
+  if(obj.hp>0)consider(annihilatorCircleContact(b,dx,dy,obj,.3+radius),"prop",obj);
+ }
+ for(const shop of m.shops){
+  consider(annihilatorCircleContact(b,dx,dy,shop,2.2),"shop",shop);
+ }
+ const end={...b,x:b.x+dx,y:b.y+dy};
+ for(const e of S.enemies){
+  if(e.hp<=0)continue;
+  // Уже находясь внутри силуэта после пробивания, сначала выходим из него.
+  if(Number.isFinite(enemyBulletContact(e,b,b.x,b.y)))continue;
+  const t=enemyBulletContact(e,end,b.x,b.y);
+  if(!Number.isFinite(t)||t<0||t>1||best&&t>=best.t)continue;
+  const normal=annihilatorNPCNormal(e,b,b.x+dx*t,b.y+dy*t,dx,dy);
+  consider({t,...normal},"enemy",e);
+ }
+ if(S.p.hp>0){
+  consider(annihilatorCircleContact(b,dx,dy,S.p,.25+radius),"player",S.p);
+ }
+ return best;
+}
+function appendAnnihilatorTrail(b,x,y){
+ const previous=b.trail[b.trail.length-1];
+ const distance=Math.hypot(x-previous.x,y-previous.y);
+ if(distance<1e-10)return;
+ b.pathDistance+=distance;
+ b.trail.push({x,y,s:b.pathDistance});
+ // Хвост не остаётся натянутым от дула через все отражения.
+ while(b.trail.length>2&&
+       (b.pathDistance-b.trail[1].s>6||b.trail.length>512)){
+  b.trail.shift();
+ }
+}
+function stepAnnihilatorRicochet(b,dt){
+ if(!Number.isFinite(b.ricochetLeft)||b.ricochetLeft<=0){
+  b.life=0;return;
+ }
+ const speed=Math.hypot(b.vx,b.vy);
+ if(!(speed>0)||!Number.isFinite(speed)||
+    ![b.x,b.y].every(Number.isFinite)){b.life=0;return}
+ if(!Array.isArray(b.trail)||!b.trail.length||
+    !Number.isFinite(b.pathDistance)){
+  b.pathDistance=0;b.trail=[{x:b.x,y:b.y,s:0}];
+ }
+ const elapsed=Math.min(dt,b.ricochetLeft);
+ const steps=Math.max(1,Math.ceil(speed*elapsed/.12));
+ for(let i=0;i<steps&&!S.dead;i++){
+  let remaining=elapsed/steps;
+  // Ограничение только для вырожденного зажатия между поверхностями.
+  for(let contactCount=0;remaining>1e-10&&contactCount<8&&!S.dead;contactCount++){
+   const dx=b.vx*remaining,dy=b.vy*remaining;
+   const hit=annihilatorRicochetContact(b,dx,dy);
+   if(!hit){
+    b.x+=dx;b.y+=dy;appendAnnihilatorTrail(b,b.x,b.y);
+    break;
+   }
+   b.x+=dx*hit.t;b.y+=dy*hit.t;
+   appendAnnihilatorTrail(b,b.x,b.y);
+   remaining*=1-hit.t;
+   const direction={x:b.vx,y:b.vy};
+   const damage=b.damage*(b.crit?b.critPower:1);
+   if(hit.kind==="enemy")hitEnemy(hit.obj,damage,0,direction);
+   else if(hit.kind==="player")damagePlayer(damage,direction);
+   else if(hit.kind==="prop"){
+    emitAnnihilatorDebris(b,hit.obj.kind==="crate");
+    damageProp(hit.obj,damage,b);
+   }else emitAnnihilatorDebris(b);
+   // Упругое отражение v' = v - 2(v·n)n, без случайного изменения угла.
+   const dot=b.vx*hit.nx+b.vy*hit.ny;
+   b.vx-=2*dot*hit.nx;b.vy-=2*dot*hit.ny;
+   const reflectedSpeed=Math.hypot(b.vx,b.vy);
+   if(!(reflectedSpeed>0)){b.life=0;return}
+   b.vx*=speed/reflectedSpeed;b.vy*=speed/reflectedSpeed;
+   // Выходим с поверхности на ничтожную величину, не расходуя ещё одно попадание.
+   b.x+=b.vx/speed*1e-5;b.y+=b.vy/speed*1e-5;
+  }
+ }
+ b.ricochetLeft=Math.max(0,b.ricochetLeft-elapsed);
+ if(b.ricochetLeft<1e-8)b.ricochetLeft=0;
+ b.life=b.ricochetLeft;
+ if(b.life===0)emitBulletDrop(b);
+}
+function stepAnnihilator(b,dt){
+ if(!Number.isFinite(dt)||dt<=0)return;
+ // В старых снарядах тип определялся только цветом.
+ if(typeof b.canRicochet!=="boolean"){
+  b.canRicochet=b.shotColor===ANNIHILATORS[1].color;
+ }
+ if(b.ricochetLeft!==undefined){
+  if(!b.canRicochet){
+   b.life=0;emitBulletDrop(b);return;
+  }
+  stepAnnihilatorRicochet(b,dt);return;
+ }
+ const speed=Math.hypot(b.vx,b.vy);
+ if(!(speed>0)||!Number.isFinite(speed)||!(b.remaining>0)||
+    !Number.isFinite(b.remaining)||!Number.isFinite(b.totalRange)||
+    !b.origin||![b.origin.x,b.origin.y].every(Number.isFinite)){
+  b.life=0;return;
+ }
+ if(!Array.isArray(b.hitIds))b.hitIds=[];
+ if(!Number.isFinite(b.debrisCount))b.debrisCount=0;
+ const flightDt=Math.min(dt,b.remaining/speed);
+ const dx=b.vx/speed,dy=b.vy/speed,travel=Math.min(b.remaining,speed*flightDt);
+ const steps=Math.max(1,Math.ceil(travel/.12)),already=b.totalRange-b.remaining;
+ for(let i=1;i<=steps&&!S.dead;i++){
+  const ox=b.x,oy=b.y,distance=already+travel*i/steps;
+  b.x=b.origin.x+dx*distance;b.y=b.origin.y+dy*distance;
+  // До выбранной точки сохраняется сквозное пробивание.
+  const x=Math.floor(b.x),y=Math.floor(b.y),m=S.map;
+  if(x>=0&&y>=0&&x<m.n&&y<m.n){
+   const cell=y*m.n+x;
+   if(cell!==b.lastCell&&m.tiles[cell]!==0)emitAnnihilatorDebris(b,m.tiles[cell]===2);
+   b.lastCell=cell;
+  }
+  for(const e of S.enemies){
+   if(e.hp<=0||b.hitIds.includes(e.id))continue;
+   if(Number.isFinite(enemyBulletContact(e,b,ox,oy))){
+    b.hitIds.push(e.id);
+    hitEnemy(e,b.damage*(b.crit?b.critPower:1),0,{x:b.vx,y:b.vy});
+   }
+  }
+  for(const obj of S.props){
+   if(S.dead)break;
+   if(obj.hp>0&&dist(obj,b)<.35){
+    emitAnnihilatorDebris(b,obj.kind==="crate");
+    damageProp(obj,b.damage*(b.crit?b.critPower:1),b);
+   }
+  }
+ }
+ if(S.dead){b.life=0;return}
+ b.remaining=Math.max(0,b.remaining-travel);
+ if(b.remaining<1e-8){
+  b.remaining=0;b.x=b.origin.x+dx*b.totalRange;b.y=b.origin.y+dy*b.totalRange;
+  emitBulletDrop(b);
+  if(!b.canRicochet){b.life=0;return}
+  b.origin={x:b.x,y:b.y};
+  b.pathDistance=0;b.trail=[{x:b.x,y:b.y,s:0}];
+  b.escapingSolid=!valid(b.x,b.y,.08);
+  b.ricochetLeft=2;b.life=2;b.debrisCount=0;
+  // Остаток текущего кадра относится уже к рикошетам.
+  if(dt>flightDt)stepAnnihilatorRicochet(b,dt-flightDt);
+ }else b.life=b.remaining/speed;
+}
 function updateBullets(dt){
  if(!Number.isFinite(dt)||dt<=0)return;
  npcHitFrame++;
  for(const b of S.bullets){
   if(S.dead)break;
   if(b.life<=0)continue;
+  if(b.shotKind==="annihilator"){
+   stepAnnihilator(b,dt);continue;
+  }
   // Долетаем оставшуюся долю кадра, не исчезаем раньше границы.
   const flightDt=Math.min(dt,b.life);
   const shotRadius=specialShotStyle(b).radius;
@@ -5239,28 +5810,7 @@ function updateBullets(dt){
    const obj=S.props.find(o=>o.hp>0&&dist(o,b)<
     .3+(b.donkeyPellet?clamp(b.pelletRadius||.12,.12,.18):shotRadius));
    if(obj){
-    obj.hp-=b.damage;b.life=0;
-    if(obj.hp<=0){
-     // Отдельная неподвижная точка: hp разрушенного объекта не обрывает звук.
-     playWav(obj.kind==="barrel"?"barrel_explosion":"crate_break",{
-      volume:obj.kind==="barrel"?1.68:.9,actor:{x:obj.x,y:obj.y}
-     });
-     burst(obj.x,obj.y,obj.kind==="barrel"?"#ffb444":"#b987dd",20);
-     if(obj.kind==="barrel"){
-      shake=10;
-      emitBarrelExplosion(obj);
-      for(const e of S.enemies){
-       if(e.hp>0&&dist(e,obj)<=CFG.barrelBlastRadius){
-        hitEnemy(e,e.max*CFG.barrelDamageFraction,0,
-         {x:e.x-obj.x,y:e.y-obj.y},b.npcRetaliation===true?b:null);
-       }
-      }
-      if(dist(S.p,obj)<=CFG.barrelBlastRadius){
-       damagePlayer(S.p.max*CFG.barrelDamageFraction,
-        {x:S.p.x-obj.x,y:S.p.y-obj.y});
-      }
-     }else if(b.npcRetaliation!==true)S.money+=3;
-    }
+    b.life=0;damageProp(obj,b.damage,b);
    }
   }
   if(b.life<=0&&b.shotKind)emitSpecialImpact(b);
@@ -5351,9 +5901,12 @@ function update(dt,realDt=dt){
   (dy!==0&&valid(p.x,p.y+dy*baseSpeed*dt))
  );
  // Перекат уже оплачен: не добавляем расход бега и восстановление в этом кадре.
- const runTime=rolling?0:stepStamina(p,S.up,realDt,shiftHeld&&canMove,shiftHeld);
+ const crouching=!knocked&&!rolling&&playerCrouching();
+ const runTime=rolling?0:stepStamina(
+  p,S.up,realDt,shiftHeld&&canMove,shiftHeld,crouching
+ );
  const runFraction=realDt>0?runTime/realDt:0;
- const speed=baseSpeed*(1+(CFG.sprintMultiplier-1)*runFraction);
+ const speed=baseSpeed*(crouching?.3:1+(CFG.sprintMultiplier-1)*runFraction);
  if(len&&!knocked&&!rolling)move(p,dx*speed*dt,dy*speed*dt);
  updatePlayerAim();
  if(mouse.down)shoot();
@@ -5622,6 +6175,11 @@ function createCaveScene(seed,level,nextId=()=>++serial){
  for(let i=0;i<boneCount;i++){
   map.decor.push({...take(),kind:4,size:.7+r()*.6,flip:r()<.5?-1:1});
  }
+ // Один независимый бросок на создание пещеры, не на повторный вход.
+ const weaponRandom=rng(hash(seed+":annihilator:v1"));
+ if(weaponRandom()<.4){
+  scene.loot.push({...take(),w:annihilatorWeapon(Math.floor(weaponRandom()*2**32),level)});
+ }
  if(!validateMap(map))throw Error("Недостижимый выход пещеры");
  return scene;
 }
@@ -5705,6 +6263,7 @@ function createHouseScene(b,seed,level,nextId=()=>++serial){
  return scene;
 }
 function finishHouseTransition(point=null){
+ annihilatorScope=null;
  playerRoll=null;
  if(point){S.p.x=point.x;S.p.y=point.y}
  delete S.p.knockback;
@@ -5826,6 +6385,8 @@ function normalizeHouseState(state){
  }
  const scenes=[state,...state.houseRooms.filter(Boolean)];
  if(inside)scenes.push(outside);
+ for(const w of state.p.weapons||[])normalizeAnnihilator(w);
+ normalizeAnnihilator(state.pending);
  let largestId=Number.isSafeInteger(state.entitySerial)&&state.entitySerial>=0
   ?state.entitySerial:0;
  for(const scene of scenes){
@@ -5845,6 +6406,12 @@ function normalizeHouseState(state){
   for(const key of ["enemies","props","loot","bullets","fx"]){
    if(!Array.isArray(scene[key]))throw Error("Содержимое сцены: "+key);
   }
+  for(const item of scene.loot)normalizeAnnihilator(item?.w);
+  for(const shop of scene.map.shops){
+   if(shop.kind==="weapons"){
+    for(const w of shop.items||[])normalizeAnnihilator(w);
+   }
+  }
   normalizeCapDrops(scene);
   scene.medkits=Array.isArray(scene.medkits)
    ?scene.medkits.filter(p=>mapPositionClear(scene.map,p,0)):[];
@@ -5859,6 +6426,7 @@ function normalizeHouseState(state){
    largestId=Math.max(largestId,e.id,
     Number.isSafeInteger(e.summonedBy)?e.summonedBy:0);
    normalizeDonkey(e,state.level);
+   normalizeAnnihilator(e.weapon);
    equipEnemy(e,state);
   }
  }
@@ -5956,6 +6524,8 @@ function capCurrencyIcon(){
 }
 function stats(w, reference) {
   if(!w)return knifeStats();
+  normalizeAnnihilator(w);
+  normalizeAnnihilator(reference);
   const rarity = RARITY[w.rare];
   const weaponClass = CLASSES[w.ci];
 
@@ -6027,10 +6597,10 @@ function stats(w, reference) {
 
   const effectComparison = other
     ? (
-        w.effect === other.effect
+        weaponEffectLabel(w) === weaponEffectLabel(other)
           ? `<br><span class="small">Эффект совпадает.</span>`
           : `<br><span class="small">
-               У другого оружия: ${EFFECTS[other.effect].name}.
+               У другого оружия: ${weaponEffectLabel(other)}.
                Разные эффекты — выбор под вашу сборку.
              </span>`
       )
@@ -6043,7 +6613,7 @@ function stats(w, reference) {
 
     <span class="tag">${rarity.name}</span>
     <span class="tag">
-      Ур. ${w.level} · ${weaponClass.name}
+      Ур. ${w.level} · ${isAnnihilator(w)?"Аннигилятор":weaponClass.name}
     </span>
 
     <p class="small">
@@ -6119,14 +6689,18 @@ function stats(w, reference) {
       { digits: 2, unit: "×" }
     )}
 
-    ${row(
+    ${isAnnihilator(w)?`
+      <div class="weapon-stat">
+        <span>Рикошеты</span>
+        <span class="weapon-stat__value">${annihilatorType(w)===1?"В течение 2 с":"Нет"}</span>
+      </div>`:row(
       "Рикошеты",
       w.effect === 3 ? 1 : 0,
-      other ? (other.effect === 3 ? 1 : 0) : undefined
+      other&&!isAnnihilator(other) ? (other.effect === 3 ? 1 : 0) : undefined
     )}
 
     <div class="weapon-effect">
-      <b>Особое свойство:</b> ${EFFECTS[w.effect].name}
+      <b>Особое свойство:</b> ${weaponEffectLabel(w)}
       ${effectComparison}
     </div>
 
@@ -6164,7 +6738,8 @@ function weaponDifferences(w,reference){
   ["Скорость снаряда",w.speed,reference.speed,1,"м/с"],
   ["Шанс крита",w.crit*100,reference.crit*100,1,"п.п."],
   ["Множитель крита",w.critPower,reference.critPower,2,"×"],
-  ["Рикошеты",w.effect===3?1:0,reference.effect===3?1:0,0,""],
+  ["Рикошеты",isAnnihilator(w)?NaN:w.effect===3?1:0,
+   isAnnihilator(reference)?NaN:reference.effect===3?1:0,0,""],
   ["Патроны в магазине",w.ammo,reference.ammo,0,""],
   ["Запас патронов",w.reserve,reference.reserve,0,""]
  ];
@@ -6190,11 +6765,11 @@ function weaponDifferences(w,reference){
   row.append(name,badge);
   fragment.appendChild(row);
  }
- if(w.effect!==reference.effect){
+ if(weaponEffectLabel(w)!==weaponEffectLabel(reference)){
   const effect=document.createElement("div");
   effect.className="weapon-effect";
-  effect.textContent="Эффект: "+(EFFECTS[reference.effect]?.name||"Неизвестный")+
-   " → "+(EFFECTS[w.effect]?.name||"Неизвестный");
+  effect.textContent="Эффект: "+weaponEffectLabel(reference)+
+   " → "+weaponEffectLabel(w);
   fragment.appendChild(effect);
  }
  if(!fragment.childNodes.length)message("Отличий нет.");
@@ -6681,7 +7256,17 @@ function betweenWindow(){
  <div class="actions"><button id="next">Следующая локация →</button><button id="saveMenu">Сохранить и выйти</button></div>`);
  on("heal",()=>{buy(CFG.healPrice,()=>p.hp=Math.min(p.max,p.hp+45));betweenWindow()});
  on("armor",()=>{buy(CFG.armorPrice,()=>p.armor=p.maxArmor);betweenWindow()});
- on("ammo",()=>{buy(CFG.ammoPrice,()=>p.weapons.forEach(w=>{if(w)w.reserve=Math.max(w.reserve,w.mag*7)}));betweenWindow()});
+ on("ammo",()=>{
+  if(!p.weapons.some(w=>w&&w.reserve<(isAnnihilator(w)?9:w.mag*7))){
+   toast("Запас патронов уже заполнен");return;
+  }
+  buy(CFG.ammoPrice,()=>p.weapons.forEach(w=>{
+   if(!w)return;
+   if(isAnnihilator(w)){normalizeAnnihilator(w);w.reserve=9}
+   else w.reserve=Math.max(w.reserve,w.mag*7);
+  }));
+  betweenWindow();
+ });
  on("case",()=>{
   buy(caseCost,()=>{
    const w=weapon(hash(S.seed+":case:"+((S.caseCount||0)+1)),S.level+1,S.pity>=3?2:0);
@@ -6837,10 +7422,8 @@ function sortSceneObjects(objects){
  return objects;
 }
 function cameraInputPoint(x,y){
- return {
-  x:W/2+(x-W/2)/CFG.cameraZoom,
-  y:H/2+(y-H/2)/CFG.cameraZoom
- };
+ const zoom=gameCameraZoom();
+ return {x:W/2+(x-W/2)/zoom,y:H/2+(y-H/2)/zoom};
 }
 function project(x,y,z=0){return {x:(x-y)*32-camera.x+W/2,y:(x+y)*16-camera.y+H/2-z}}
 function unproject(x,y){
@@ -7002,6 +7585,7 @@ function draw(){
 }
 const minimapCache=new WeakMap();
 function drawMinimap(){
+ if(annihilatorScoped())return;
  const m=S.map,scale=Math.min(4,150/m.n),size=m.n*scale,x0=W-size-18,y0=18;
  let cached=minimapCache.get(m);
  if(!cached){
@@ -7087,13 +7671,13 @@ function drawHUD(){
  <span class="hero-meter-label">ВЫНОСЛИВОСТЬ</span>
  <div class="bar" title="Выносливость: Shift + движение — бег"><i style="width:${clamp(p.stamina/staminaStats(S.up).max*100,0,100).toFixed(1)}%;background:${p.exhausted?"#b36a3b":"#83964d"}"></i></div>
  </div>
- <div>${p.exhausted?"Истощение: восстановите 25% STA и отпустите Shift":p.sprinting&&!paused?"Бег":`Бег: ${(p.stamina/staminaStats(S.up).drain).toFixed(1)} с · Shift`}</div>
+ <div>${playerCrouching()?"Приседание · скорость −70% · разброс −50% · восстановление STA +80%":p.exhausted?"Истощение: восстановите 25% STA и отпустите Shift":p.sprinting&&!paused?"Бег":`Бег: ${(p.stamina/staminaStats(S.up).drain).toFixed(1)} с · Shift`}</div>
  <div class="small hero-upgrades">${up||"Улучшений пока нет"}</div>`;
  const playerHUD=document.getElementById("playerHUD");
  playerHUD.hidden=false;
  if(html!==lastHUD){playerHUD.innerHTML=html;lastHUD=html}
  ammoHUD.hidden=true;
- $("#hint").textContent=nearest()?.text||"WASD · Shift — бег · Пробел — перекат · ЛКМ · R · Q · E · Tab — инвентарь · Esc";
+ $("#hint").textContent=nearest()?.text||"WASD · Shift — бег · Ctrl — присесть · Пробел — перекат · ЛКМ · R · Q · E · Tab — инвентарь · Esc";
 }
 function pauseWindow(){
  if(deathSequence&&deathSequence.owner===S)return;
@@ -8468,12 +9052,32 @@ function aboutGameWindow(){
  <p><b>Мышь</b> — прицеливание независимо от направления движения.</p>
  <p><b>Левая кнопка мыши</b> — выстрел или укол ножом.
  Удерживайте для повторных атак.</p>
+ <p><b>Аннигилятор:</b> удерживайте ПКМ для прицела и ЛКМ для огня.
+ Обзор прицела на 30% шире обычного. Луч пробивает препятствия до точки,
+ выбранной курсором при выстреле, в пределах дальности оружия.
+ Синий аннигилятор не рикошетит: в конечной точке луч растворяется.
+ Фиолетовый затем ещё 2 секунды отражается от препятствий и персонажей.
+ Отражённый снаряд опасен и для героя! После двух секунд остаётся
+ только короткий растворяющийся след без урона.
+ Во время прицеливания интерфейс скрыт, кроме прицела и кнопки паузы.</p>
  <p><b>R</b> — перезарядка из запаса патронов.</p>
  <p><b>Q</b> — переключение между двумя оружейными слотами.
  <b>1 / 2</b> — выбор конкретного слота.</p>
  <p><b>Левый или правый Shift + движение</b> — бег с расходом выносливости.</p>
- <p><b>Пробел</b> — резкий перекат в сторону прицела за половину максимальной
- выносливости. Нужен запас не меньше половины. Препятствия останавливают
+ <p><b>Удержание левого или правого Ctrl</b> — приседание:
+ разброс оружия уменьшается на 50%, восстановление выносливости ускоряется
+ на 80% относительно обычной нормы с теми же улучшениями.
+ Задержка восстановления остаётся прежней.
+ Приседание исключает спринт и снижает скорость ходьбы на 70%.
+ Перекат прерывает приседание; отпускание Ctrl возвращает обычную стойку.
+ Приседание не уменьшает хитбокс и не даёт неуязвимость.</p>
+ <p><b>Пробел</b> — резкий перекат в направлении нажатых W / A / S / D,
+ включая сочетания для диагоналей. Если ни одна из этих клавиш не нажата —
+ в сторону прицела. Направление фиксируется в начале переката.
+ Противоположные клавиши взаимно гасятся; при нулевом направлении перекат
+ не выполняется и выносливость не тратится.
+ Стоимость — ${CFG.rollStaminaFraction*100}% максимальной выносливости.
+ Нужен запас не меньше ${CFG.rollStaminaFraction*100}% от максимума. Препятствия останавливают
  перекат; неуязвимости он не даёт. Для следующего переката отпустите
  пробел и нажмите снова.</p>
  <p><b>E</b> — действие из подсказки внизу экрана:
@@ -8652,6 +9256,10 @@ addEventListener("keydown",e=>{
   }
  }
  if(["Space","KeyW","KeyA","KeyS","KeyD"].includes(e.code))e.preventDefault();
+ if(S&&!paused&&!S.dead&&e.ctrlKey&&
+    ["ControlLeft","ControlRight","KeyR","KeyQ","KeyE","Digit1","Digit2"].includes(e.code)){
+  e.preventDefault();
+ }
  if(e.repeat)return;
  keys[e.code]=true;
  if(e.code==="Escape"){
@@ -8680,6 +9288,11 @@ addEventListener("keyup",e=>keys[e.code]=false);
 canvas.addEventListener("mousemove",e=>updateCanvasPointer(e.clientX,e.clientY));
 canvas.addEventListener("mousedown",e=>{
  updateCanvasPointer(e.clientX,e.clientY);
+ if(e.button===2&&S&&!paused&&!S.dead&&isAnnihilator(activeWeapon())){
+  e.preventDefault();
+  annihilatorScope={owner:S,map:S.map,weapon:activeWeapon()};
+  updatePlayerAim();
+ }
  if(e.button===0&&!paused)mouse.down=true;
 });
 addEventListener("wheel",e=>{
@@ -8687,7 +9300,18 @@ addEventListener("wheel",e=>{
  // В меню браузерный zoom остаётся доступен и не расширяет обзор мира.
  if(e.ctrlKey&&S&&!paused&&!S.dead)e.preventDefault();
 },{passive:false,capture:true});
-addEventListener("mouseup",()=>mouse.down=false);
+addEventListener("mouseup",e=>{
+ if(e.button===0){
+  mouse.down=false;
+  if(annihilatorAimHint)annihilatorAimHint.latched=false;
+ }
+ if(e.button===2)annihilatorScope=null;
+});
+addEventListener("blur",()=>{annihilatorScope=null});
+addEventListener("pointercancel",()=>{annihilatorScope=null;mouse.down=false});
+document.addEventListener("visibilitychange",()=>{
+ if(document.hidden){annihilatorScope=null;mouse.down=false}
+});
 canvas.addEventListener("contextmenu",e=>e.preventDefault());
 addEventListener("blur",()=>{keys={};mouse.down=false;if(S&&!paused)pauseWindow()});
 document.addEventListener("visibilitychange",()=>{
@@ -8705,7 +9329,8 @@ function frame(now){
  update(dt,realDt);syncSound();shake=Math.max(0,shake-dt*24);
  shotShake=Math.max(0,shotShake-dt*24);
  if(toastTimer>0){toastTimer-=dt;if(toastTimer<=0)$("#toast").textContent=""}
- draw();requestAnimationFrame(frame);
+ document.body.classList.toggle("annihilator-scoped",annihilatorScoped());
+ draw();drawAnnihilatorAimHint();requestAnimationFrame(frame);
 }
 menu();requestAnimationFrame(frame);
 </script>
@@ -9201,7 +9826,7 @@ input {
   }
 
   function visible(x, y, margin = 150) {
-    const p = project(x, y),zoom=CFG.cameraZoom;
+    const p = project(x, y),zoom=gameCameraZoom();
     const screenX=W/2+(p.x-W/2)*zoom;
     const screenY=H/2+(p.y-H/2)*zoom;
     const padding=margin*zoom;
@@ -9223,7 +9848,7 @@ input {
   }
 
   function flushPortalLabels(){
-    const shown=Boolean(S&&!paused&&!S.dead&&portalLabelQueue.length);
+    const shown=Boolean(S&&!paused&&!S.dead&&!annihilatorScoped()&&portalLabelQueue.length);
     portalLabelLayer.hidden=!shown;
     if(!shown)return;
     const rect=canvas.getBoundingClientRect();
@@ -9852,6 +10477,7 @@ drawActor = function(a, player = false) {
     const leisure=player||boss?null:enemyBehaviorStates.get(a);
     const idleMode=leisure?.map===S.map?leisure.mode:"";
     const sitting=idleMode==="sit";
+    const crouching=player&&playerCrouching();
 
     ctx.save();
     ctx.translate(p.x, p.y);
@@ -9931,7 +10557,7 @@ walk.x = a.x;
 walk.y = a.y;
 walk.time = now;
 
-const stride = 6 * walk.blend;
+const stride = 6 * walk.blend * (crouching?.5:1);
 
 function drawLeg(side, phase) {
   const swing = Math.sin(phase) * stride;
@@ -9940,13 +10566,14 @@ function drawLeg(side, phase) {
   const lift = Math.max(0, Math.cos(phase)) * 4 * walk.blend;
 
   const hipX = side * 5;
-  const hipY = -11;
+  const hipY = crouching?-1:-11;
 
-  const footX = side * 7 + walk.dirX * swing;
+  const footX = side * (crouching?10:7) + walk.dirX * swing;
   const footY = walk.dirY * swing - lift;
 
-  const kneeX = hipX + (footX - hipX) * .55;
-  const kneeY = -6 + (footY * .45) - lift * .25;
+  const kneeX = crouching?side*15+walk.dirX*swing*.4:
+    hipX + (footX - hipX) * .55;
+  const kneeY = (crouching?-3:-6) + (footY * .45) - lift * .25;
 
   // Тёмный внешний контур.
   strokeLine(hipX, hipY, kneeX, kneeY, "#292820", 7);
@@ -9988,6 +10615,7 @@ if(sitting){
 ctx.restore();
     ctx.save();
     if(sitting)ctx.translate(0,13);
+    else if(crouching)ctx.translate(0,10);
 
     // Плащ / бронежилет.
     ink([
@@ -10093,6 +10721,7 @@ ctx.restore();
     ctx.restore();
     ctx.restore();
 
+    if(annihilatorScoped())return;
     if (!player && a.hp < a.max) {
       const y = p.y - (boss ? 94 : 60);
       ctx.fillStyle = "#3e352c";
@@ -10190,7 +10819,7 @@ ctx.restore();
     // Масштабируем сцену целиком: персонажей, здания, пули и эффекты.
     // Существующий ctx.restore() снимает масштаб перед миникартой и прицелом.
     ctx.translate(W/2,H/2);
-    ctx.scale(CFG.cameraZoom,CFG.cameraZoom);
+    ctx.scale(gameCameraZoom(),gameCameraZoom());
     ctx.translate(-W/2,-H/2);
 
     // В доме пространство за стенами затемнено.
@@ -10440,7 +11069,9 @@ ctx.restore();
         const p=project(o.x,o.y,9+Math.sin(clock*3)*2);
         ellipse(p.x,p.y+10,13,5,"#44392944");
         drawWeaponSprite(o.w,p.x-8,p.y,-.15,.65);
-        text(["○","◇","✦","★"][o.w.rare],p.x,p.y-20,13,RARITY[o.w.rare].color);
+        if(!annihilatorScoped()){
+          text(["○","◇","✦","★"][o.w.rare],p.x,p.y-20,13,RARITY[o.w.rare].color);
+        }
       }else if(item.type==="caveWall"){
         drawCaveWall(o,m);
       }else if(item.type==="roomWall"){
@@ -10503,9 +11134,10 @@ ctx.restore();
     }
 
     drawBarrelExplosions();
+    drawAnnihilatorBeams();
 
     // Предупреждения рисуются поверх окружения для читаемости.
-    for (const e of S.enemies) {
+    if(!annihilatorScoped())for (const e of S.enemies) {
       if (e.hp <= 0 || e.bossKind==="donkey" || !visible(e.x, e.y)) continue;
       const behavior = enemyBehaviorStates.get(e);
       const alerted = behavior?.map === S.map && behavior.alert > 0;
@@ -10581,10 +11213,13 @@ ctx.restore();
     ctx.fillStyle = vignette;
     ctx.fillRect(0, 0, W, H);
 
-    drawMinimap();
-    drawHUD();
+    drawAnnihilatorScope();
+    if(!annihilatorScoped()){
+      drawMinimap();
+      drawHUD();
+    }
 
-    if (!paused) {
+    if (!paused&&!annihilatorScoped()) {
       ctx.strokeStyle = "#342c22";
       ctx.lineWidth = 1.5;
       ctx.beginPath();
